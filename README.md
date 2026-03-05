@@ -13,6 +13,8 @@ StupidGreen is an **open-source**, **self-hosted music platform** desgined to em
 
 StupidGreen is written in [Nim](https://nim-lang.org), a fast and efficient programming language that compiles to native code. This allows StupidGreen to be lightweight and performant, even on modest hardware!
 
+<img src="https://github.com/openpeeps/stupidgreen/blob/main/.github/screenshot_01.png" width="100%"><br>
+
 > [!NOTE]
 > StupidGreen is currently in early development! If you're interested in contributing or have ideas for features, don't hesitate to reach out or submit a pull request!
 
