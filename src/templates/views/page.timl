@@ -1,0 +1,7 @@
+@include "header"
+div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
+  div.row > div.col-xl-10.col-12.mx-auto
+    div.row.mb-4 > div.col-12
+      h1.display-4.fw-bold.mt-2.mb-2: $this["page"]["meta"]["title"]
+    div.row > div.col-12
+      article.container-content-area.post-content: $this["page"]["content"]

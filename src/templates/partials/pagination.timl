@@ -1,0 +1,10 @@
+if toFloat($this["totalPages"]) > 1:
+  nav.mt-5 aria-label="Blog pagination"
+    ul.pagination.justify-content-center
+      if $this["prevUrl"] != "":
+        li.page-item
+          a.page-link href=$this["prevUrl"] aria-label="Previous": "&#8592;"
+      li.page-item.disabled > span.page-link: "Page " & $this["page"] & " of " & $this["totalPages"]
+      if $this["nextUrl"] != "":
+        li.page-item
+          a.page-link href=$this["nextUrl"] aria-label="Next": "&#8594;"

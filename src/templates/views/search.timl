@@ -1,0 +1,13 @@
+@include "header"
+div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
+  div.row > div.col-xl-8.col-lg-9.col-md-10.col-12.mx-auto
+    div.row.mb-4 > div.col-12
+      h1.h4.fw-bold: "Search"
+      p.text-muted: "Type a query to search the blog. Results are loaded from the local search index."
+    div.row.mb-4 > div.col-12
+      form.spotlight-form.d-flex.position-relative action="/search" method="GET"
+        input.form-control.form-control-lg.px-3.rounded-4.spotlight.border-2.me-2 type="search" name="q" placeholder="Search the blog..." aria-label="Search the blog"
+        button.btn.btn-primary.px-4.rounded-4 type="submit": "Search"
+    div.row > div.col-12
+      div#search-results
+        p.text-muted: "No results yet."

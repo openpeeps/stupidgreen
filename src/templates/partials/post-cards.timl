@@ -1,0 +1,24 @@
+if len($this["posts"]) > 0:
+  for $post in items($this["posts"]):
+    article.post-card.mb-5.pb-5
+      div
+        if len($post["meta"]["tags"]) > 0:
+          div.d-flex.flex-wrap.gap-2.mb-3
+            for $tag in items($post["meta"]["tags"]):
+              a.badge.rounded-pill.text-bg-dark href="/tags/" & $tag["slug"]: $tag["name"]
+        h2.h1.fw-bold.mb-2 > a.text-decoration-none href=$post["meta"]["url"]: $post["meta"]["title"]
+        div.mb-3.d-flex.align-items-center.text-muted.small.flex-wrap.gap-2
+          if $post["meta"]["author"] != "":
+            span: $post["meta"]["author"]
+            span: "&bullet;"
+          span: $post["meta"]["date"]
+          if $this["config"]["content"]["showReadingTime"] == true and toFloat($post["reading_time"]) > 0:
+            span: $post["reading_time"] & " min read"
+        if $post["meta"]["excerpt"] != "":
+          p.card-text.text-muted.mb-2: $post["meta"]["excerpt"]
+        if $this["config"]["content"]["readMoreText"] != "":
+          div.mb-3
+            a.link-light.text-decoration-none.fw-medium href=$post["meta"]["url"]: $this["config"]["content"]["readMoreText"] & " &rarr;"
+else:
+  div.card.border-dark.rounded-4 > div.card-body.p-5.text-center
+    p.lead.mb-0: "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"

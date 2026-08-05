@@ -1,0 +1,76 @@
+@include "header"
+div.container-fluid.my-4
+  div.row > div.col-xl-10.col-12.mx-auto
+    div.row.mb-4 > div.col-12
+      if len($this["post"]["meta"]["tags"]) > 0:
+        div.d-flex.flex-wrap.gap-2
+          for $tag in items($this["post"]["meta"]["tags"]):
+            a.badge.rounded-pill.text-bg-dark href="/tags/" & $tag["slug"]: $tag["name"]
+      h1.display-4.fw-bold.mt-2.mb-2: $this["post"]["meta"]["title"]
+      div.d-flex.flex-wrap.align-items-center.text-muted.small.gap-2.mt-2
+        div
+          if $this["post"]["meta"]["author"] != "":
+            span: "Published by "
+              $this["post"]["meta"]["author"]
+            span: "&bullet;"
+          span: $this["post"]["meta"]["date"]
+          if $this["config"]["content"]["showReadingTime"] == true and toFloat($this["post"]["reading_time"]) > 0:
+            span: "&bullet;"
+            span: $this["post"]["reading_time"] & " min read"
+
+        div.btn-group
+          button type="button" aria-label="Share this page" class="btn btn-dark btn-sm border-end rounded-start-3 d-flex align-items-center"
+            span.ms-1: "Share page"
+          button type="button" aria-label="Open share options" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split rounded-end-3" data-bs-toggle="dropdown" aria-expanded="false"
+            span class="visually-hidden": "Toggle Dropdown"
+          ul.dropdown-menu.dropdown-menu-sm.dropdown-menu-end.rounded-4.shadow-lg style="font-size:0.85em"
+            li
+              a.dropdown-item.d-flex.align-items-center.gap-2
+                div.d-flex.flex-row
+                  div.share-svg-icon.me-2: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-link"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" /><path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" /></svg>'
+                  div.d-flex.flex-column
+                    span.fw-bold.text-light: "Copy URL"
+                    small.text-muted: "Copy the URL of this page"
+            li
+              a.dropdown-item.d-flex.align-items-center.gap-2
+                div.d-flex.flex-row
+                  div.share-svg-icon.me-2: '<svg viewBox="0 0 208 128" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" ><path fill="none" stroke="#FFF" stroke-width="10" d="M15 5h178a10 10 0 0 1 10 10v98a10 10 0 0 1-10 10H15a10 10 0 0 1-10-10V15A10 10 0 0 1 15 5z"/><path fill="#FFF" d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39H30zm125 0-30-33h20V30h20v35h20l-30 33z"/></svg>'
+                  div.d-flex.flex-column
+                    span.fw-bold.text-light: "Copy as Markdown"
+                    small.text-muted: "Copy page content as Markdown"
+            li: hr.dropdown-divider
+
+    if $this["post"]["meta"]["cover"] != "":
+      div.row.mb-4 > div.col-12
+        img.img-fluid.rounded-4.w-100 src=$this["post"]["meta"]["cover"] alt=$this["post"]["meta"]["title"]
+
+    if len($this["post"]["toc"]) > 1:
+      div.row.mb-4 > div.col-12
+        div.card.border-dark.rounded-4 > div.card-body
+          h6.card-title: "Table of Contents"
+          ul.list-unstyled.mb-0
+            for $heading in items($this["post"]["toc"]):
+              li.mb-1 > a.text-decoration-none href="#" & $heading["id"]: $heading["title"]
+
+    div.row > div.col-12
+      article.container-content-area.post-content: $this["post"]["content"]
+
+    if $this["config"]["content"]["showLastUpdated"] == true and $this["post"]["last_updated"] != "":
+      div.d-flex.gap-2
+        span: "Last updated"
+        time.ms-2 datetime=$this["post"]["last_updated"] title=$this["post"]["last_updated"]: $this["post"]["last_updated"]
+
+    if $this["config"]["content"]["bottom_navigation"] == true:
+      div.row.g-3.mt-2
+        div.col-lg-6.col-md-6
+          if $this["post"]["navigation"]["previous"] != nil:
+            const previousItem = $this["post"]["navigation"]["previous"]
+            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-start href=$previousItem["url"]
+              span.text-muted.small: "&larr; Older"
+              span.d-block.mt-1.h6.text-light: $previousItem["title"]
+        div.col-lg-6.col-md-6
+          if $this["post"]["navigation"]["next"] != nil:
+            const nextItem = $this["post"]["navigation"]["next"]
+            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-end href=$nextItem["url"]
+              span.text-muted.small: "Newer &rarr;"
+              span.d-block.mt-1.h6.text-light: $nextItem["title"]

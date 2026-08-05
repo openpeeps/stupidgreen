@@ -1,0 +1,5 @@
+div.col-7.mx-auto > div.row style="height:calc(100vh - 120px)" > div.col-12.align-self-center.text-center
+  p.fw-bold.text-danger: "500"
+  h1.display-5.fw-bold: $this["post"]["meta"]["title"]
+  p: $this["post"]["meta"]["description"]
+  a.btn.btn-outline-light.border-2.rounded-3 href="/": "Back to Homepage"

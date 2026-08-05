@@ -1,66 +1,97 @@
 <p align="center">
-  <img src="https://github.com/openpeeps/stupidgreen/blob/main/.github/stupidgreen.png" width="110px" height="110px"><br>
-  StupidGreen &mdash; The Open-Source Platform for Independent Musicians<br>
-  Music Catalog &bullet; Tour Events &bullet; Merch &bullet; 100% Customizable &bullet; Self-Hosted &bullet;
+  StupidGreen &mdash; A fast static blog generator built on top of <a href="https://github.com/supranim/supranim">Supranim</a><br>
+  Compiled &bullet; Lightweight &bullet; Fast &bullet; 👑 Written in Nim language
 </p>
 
 <p align="center">
   <code>nimble install stupidgreen</code>
 </p>
 
-## About StupidGreen
-StupidGreen is an **open-source**, **self-hosted music platform** desgined to empower independent artists to **share their music with the world**. With a super simple and intuitive interface, StupidGreen makes it easy for musicians to customize their website, upload music and merch and connect with fans. StupodGreen is for everyone, from bedroom beatmakers to touring bands.
+## 😍 Key Features
+- 🔥 **Compiled**, extremely **lightweight**, **super fast!**
+- Markdown support for writing content with YAML frontmatter
+- Blog capabilities with support for **tags** and **categories**
+- Support for pages and nested structure (`pages/projects/x.md` to `/projects/x`)
+- **RSS/Atom feed** + **sitemap.xml** + **llms.txt** generation
+- Lazy loading of iframes, images and other media
+- Search functionality with support for fuzzy search and search suggestions
+- **`/llms.txt`** from `pages/llms.md` (LLM-friendly plain text)
+- **Reading time** & body-derived **excerpts** with "Continue reading" links
+- **OpenGraph Image generation** for social media sharing
+- Easy to extend with custom **CSS** and **JS**
 
-StupidGreen is written in [Nim](https://nim-lang.org), a fast and efficient programming language that compiles to native code. This allows StupidGreen to be lightweight and performant, even on modest hardware!
+## About
+StupidGreen is a static blog generator written in [Nim](https://nim-lang.org). It takes a
+directory of Markdown files and generates a fully static website, powered by [Supranim](https://supranim.com),
+[Tim Engine](https://github.com/openpeeps/tim), [Marvdown](https://github.com/openpeeps/marvdown) and [Boogie](https://github.com/openpeeps/boogie).
 
-<img src="https://github.com/openpeeps/stupidgreen/blob/main/.github/screenshot_01.png" width="100%"><br>
-
-> [!NOTE]
-> StupidGreen is currently in early development! If you're interested in contributing or have ideas for features, don't hesitate to reach out or submit a pull request!
-
-
-## Key features
-- [x] Fast, compiled and super lightweight
-- [x] Modern, responsive design built with Supranim and Bootstrap 5
-- [x] Music Catalog with album, single, and EP support
-- [x] Biography and artist profile pages
-- [x] Countact form for booking inquiries and fan messages
-- [x] Audio player with continuous playback and playlist support
-- [x] Audio waveform visualization for each track
-- [x] Customizable artist profiles and discography pages
-- [ ] Embeddable music player widget for external websites
-- [ ] Open-Graph Generator for rich social media sharing 
-- [ ] Member-only content and subscription support
-- [ ] Tour dates and event management features
-- [ ] Merch store for selling physical and digital products
-- [ ] Lemonsqueeze/Stripe integration for payments and subscriptions
-- [ ] Admin dashboard for managing content and users
-- [ ] RESTful API for third-party integrations and mobile apps
-- [ ] RSS/Feed support for new releases and tour dates
-
-## Installation
-The most straightforward way to get StupidGreen up and running is to use Nimble, the package manager for Nim. If you don't have Nimble installed, you can follow the instructions on the [Nim website](https://nim-lang.org/install.html) to set it up. Once you have Nimble installed, simply run the following command in your terminal:
+## 🚀 Getting Started
 
 ```bash
-nimble install stupidgreen
+stupidgreen new my-blog && cd my-blog
+
+stupidgreen post "Hello World"   # create a new post
+stupidgreen run --sync           # development server with live reload
+stupidgreen build .              # generate the static site into `_build/`
 ```
 
-## Usage
-After installing StupidGreen, you can initialize a new StupidGreen project in your desired directory by running:
-```bash
-stupidgreen init awesome-band
+## StupidGreen project structure
+
+```
+my-blog/
+├── stupidgreen.config.yaml      # site configuration
+├── posts/                   # blog posts (title, date, tags, draft, ...)
+│   ├── index.md             # homepage intro (blog index) when no pages/index.md
+│   └── hello-world.md
+├── pages/                   # standalone pages, mapped to their URL path
+│   ├── index.md             # homepage intro, rendered above the post list
+│   ├── about.md             # /about
+│   ├── llms.md              # /llms.txt (plain text)
+│   └── projects/
+│       ├── index.md         # /projects
+│       └── demo.md          # /projects/demo
+└── assets/                  # optional `style.css` override
 ```
 
-Then, navigate to the project directory and start the development server with:
-```bash
-stupidgreen start --port 4000
+### Post front matter
+
+```markdown
+---
+title: "Hello World"
+date: 2026-01-15
+tags: [nim, blogging]
+categories: [tutorial]
+author: "George Lemon"
+excerpt: "Optional custom excerpt"  # overrides the auto-generated one
+cover: "/assets/cover.jpg"
+draft: false
+---
 ```
+
+### Pages
+Any `.md` file in `pages/` becomes a standalone page at its path. `index.md` is
+reserved for the *first page* of a directory (`pages/projects/index.md` → `/projects`).
+The homepage always renders the blog index (`index.timl`): it shows the intro from
+`pages/index.md` (or `posts/index.md`) above the list of post cards.
+
+> Note: page files under reserved route paths (`/posts/*`, `/page/*`, `/tags/*`,
+> `/categories/*`, `/search`, `/feed.xml`, `/sitemap.xml`, `/llms.txt`) are
+> shadowed by those routes.
+
+### Configuration
+`stupidgreen.config.yaml` supports metadata (title, description, url, author),
+appearance (theme, container widths), header (search, notification), content
+(reading time, excerpt length, read-more label, lazyload), pagination (`per_page`),
+feed (kind `rss`/`atom`, limit) and navbar/footer links.
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/stupidgreen/issues)
 - 👋 Wanna help? [Fork it!](https://github.com/openpeeps/stupidgreen/fork)
-- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
+- 🎉 Spread the word! **Tell your friends about StupidGreen**
+
+|  |  |
+|---|---|
+| <a href="https://opencode.ai/go?ref=BHMEEK48QX"><img src="https://github.com/openpeeps/pistachio/blob/main/.github/opencode.png" alt="OpenCode"></a> | Switch to **Open-Source LLMs** via OpenCode GO, choosing from a variety of powerful models such as DeepSeek, Qwen, Kimi, GLM-5, MiniMax, MiMo. 🍕 [Use our referral link to get started!](https://opencode.ai/go?ref=BHMEEK48QX)|
 
 ### 🎩 License
 StupidGreen | `AGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>

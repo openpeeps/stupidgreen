@@ -3,4 +3,7 @@ build/
 nimcache/
 nimblecache/
 htmldocs/
+node_modules/
 /src/storage/templates/*
+.env.yml
+.env
