@@ -5,5 +5,7 @@ jobs:
     uses: nimbase/setup-nim-action/.github/workflows/test.yml@main
     with:
       nim-version: '2.2.10'
-      pre-test-command: nimble install clue
+      pre-test-command: | 
+        nimble install clue
+        clue install
       test-command: clue test
