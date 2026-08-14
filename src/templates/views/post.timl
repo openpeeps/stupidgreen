@@ -1,6 +1,6 @@
 @include "header"
 div.container-fluid.my-4
-  div.row > div.col-xl-10.col-12.mx-auto
+  div.row > div.col-xl-9.col-12.mx-auto
     div.row.mb-4 > div.col-12
       if len($this["post"]["meta"]["tags"]) > 0:
         div.d-flex.flex-wrap.gap-2
