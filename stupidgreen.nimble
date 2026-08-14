@@ -23,9 +23,4 @@ requires "activitypub >= 0.1.0"
 # Supra is not really a dependency but we want to ensure
 # it's available when building the release version of StupidGreen
 # so we can use Supra's CLI `bundle` command to bundle static assets into the executable.
-requires "supra >= 0.1.0"
-
-task test, "Build and run integration tests":
-  exec "nimble build"
-  exec "nim c -r --hints:off tests/test_build.nim"
-  exec "nimble c -r --hints:off tests/test_activitypub.nim"
+requires "supra >= 0.1.2"

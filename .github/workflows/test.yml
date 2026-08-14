@@ -3,3 +3,7 @@ on: [push, pull_request]
 jobs:
   test:
     uses: nimbase/setup-nim-action/.github/workflows/test.yml@main
+    with:
+      nim-version: '2.2.10'
+      pre-test-command: nimble install clue
+      test-command: clue test
