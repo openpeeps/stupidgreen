@@ -1,8 +1,17 @@
 import std/[macros, os]
 
+when defined(macosx):
+  --passL:"/usr/local/lib/libmonocypher.a"
+  --passC:"-I /opt/local/include"
+  --passC:"-I /usr/local/include"
+  --passC:"-Wno-incompatible-function-pointer-types"
+elif defined(linux):
+  --passL:"-L/usr/local/lib/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib/lib -Wl,-rpath,/usr/local/lib -lmonocypher"
+  --passC:"-I /usr/include" 
+
 --define:ssl
 --deepCopy:on
---mm:atomicArc
+--mm:arc
 --define:webapp # todo supWebApp
 --define:supraFileserver
 --define:supranimUseGlobalOnRequest
