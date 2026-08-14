@@ -2,7 +2,6 @@ import std/[macros, os]
 
 --define:ssl
 --deepCopy:on
---define:supraNative
 --mm:atomicArc
 --define:webapp # todo supWebApp
 --define:supraFileserver
