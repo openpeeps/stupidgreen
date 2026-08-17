@@ -361,125 +361,124 @@ proc removePost*(url: string) =
 #
 # HTTP endpoints (powpow backend only)
 #
-when defined supraNative:
-  import std/httpcore
-  import pkg/powpow/proto
+import std/httpcore
+import pkg/powpow/proto
 
-  proc apSendJson(res: HttpResponse, body: string) =
-    res.status(Http200)
-      .header("Content-Type", "application/activity+json")
-      .header("Access-Control-Allow-Origin", "*")
-      .send(body)
+proc apSendJson(res: HttpResponse, body: string) =
+  res.status(Http200)
+    .header("Content-Type", "application/activity+json")
+    .header("Access-Control-Allow-Origin", "*")
+    .send(body)
 
-  proc handleWebfinger(req: HttpRequest, res: HttpResponse) =
-    var resource = req.getQuery()
-    if resource.startsWith("resource="):
-      resource = resource[9..^1].replace("%40", "@")
-    if resource.len == 0:
-      res.sendError(Http400, "Missing resource parameter")
-      return
-    if resource != "acct:" & apUsername & "@" & apDomain:
-      res.sendError(Http404, "Actor not found")
-      return
-    let jrd = buildJrd(resource, apActorId,
-      profilePage = apBaseUrl,
-      avatarUrl = apIconUrl())
-    res.status(Http200)
-      .header("Content-Type", "application/jrd+json")
-      .send($jrd)
+proc handleWebfinger(req: HttpRequest, res: HttpResponse) =
+  var resource = req.getQuery()
+  if resource.startsWith("resource="):
+    resource = resource[9..^1].replace("%40", "@")
+  if resource.len == 0:
+    res.sendError(Http400, "Missing resource parameter")
+    return
+  if resource != "acct:" & apUsername & "@" & apDomain:
+    res.sendError(Http404, "Actor not found")
+    return
+  let jrd = buildJrd(resource, apActorId,
+    profilePage = apBaseUrl,
+    avatarUrl = apIconUrl())
+  res.status(Http200)
+    .header("Content-Type", "application/jrd+json")
+    .send($jrd)
 
-  proc handleActor(req: HttpRequest, res: HttpResponse) =
-    if apActorJson.isNil:
-      res.sendError(Http404, "Actor not found")
+proc handleActor(req: HttpRequest, res: HttpResponse) =
+  if apActorJson.isNil:
+    res.sendError(Http404, "Actor not found")
+  else:
+    apSendJson(res, $apActorJson)
+
+proc handleInbox(req: HttpRequest, res: HttpResponse) =
+  let body = req.getBodyString()
+  var headerList: seq[(string, string)]
+  for k, v in req.getHeaders().pairs:
+    headerList.add((k, v))
+  let inboxPath = "/users/" & apUsername & "/inbox"
+  let result = apDispatcher.handle(body, headerList, inboxPath)
+  if result.success:
+    res.status(Http202).send()
+  else:
+    let code = case result.status
+      of 400: Http400
+      of 401: Http401
+      else: Http500
+    res.sendError(code, result.error)
+
+proc serveCollection(res: HttpResponse, collectionId: string, items: seq[JsonNode]) =
+  var json = %*{
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": collectionId,
+    "type": "OrderedCollection",
+    "totalItems": items.len,
+    "first": collectionId & "?page=1"
+  }
+  if items.len > 0:
+    json["orderedItems"] = %*items
+  apSendJson(res, $json)
+
+proc handleOutbox(req: HttpRequest, res: HttpResponse) =
+  readWith apLocker:
+    serveCollection(res, apOutboxUrl, outbox)
+
+proc handleFollowers(req: HttpRequest, res: HttpResponse) =
+  var urls: seq[JsonNode] = @[]
+  readWith apLocker:
+    for fl in followers:
+      urls.add(%* fl.actorUrl)
+  serveCollection(res, apFollowersUrl, urls)
+
+proc handleFollowing(req: HttpRequest, res: HttpResponse) =
+  serveCollection(res, apFollowingUrl, @[])
+
+proc apPaths*(): seq[string] =
+  ## The exact HTTP paths served by the ActivityPub endpoints
+  @[
+    "/.well-known/webfinger",
+    "/users/" & apUsername,
+    "/users/" & apUsername & "/inbox",
+    "/users/" & apUsername & "/outbox",
+    "/users/" & apUsername & "/followers",
+    "/users/" & apUsername & "/following"
+  ]
+
+proc apRoute*(req: HttpRequest, res: HttpResponse) =
+  ## Low-level route dispatcher for the ActivityPub endpoints
+  let path = req.getPath()
+  let actorPath = "/users/" & apUsername
+  if path == "/.well-known/webfinger":
+    if req.getMethod() == HttpGet:
+      handleWebfinger(req, res)
     else:
-      apSendJson(res, $apActorJson)
-
-  proc handleInbox(req: HttpRequest, res: HttpResponse) =
-    let body = req.getBodyString()
-    var headerList: seq[(string, string)]
-    for k, v in req.getHeaders().pairs:
-      headerList.add((k, v))
-    let inboxPath = "/users/" & apUsername & "/inbox"
-    let result = apDispatcher.handle(body, headerList, inboxPath)
-    if result.success:
-      res.status(Http202).send()
+      res.sendError(Http405, "Method Not Allowed")
+  elif path == actorPath:
+    if req.getMethod() == HttpGet:
+      handleActor(req, res)
     else:
-      let code = case result.status
-        of 400: Http400
-        of 401: Http401
-        else: Http500
-      res.sendError(code, result.error)
-
-  proc serveCollection(res: HttpResponse, collectionId: string, items: seq[JsonNode]) =
-    var json = %*{
-      "@context": "https://www.w3.org/ns/activitystreams",
-      "id": collectionId,
-      "type": "OrderedCollection",
-      "totalItems": items.len,
-      "first": collectionId & "?page=1"
-    }
-    if items.len > 0:
-      json["orderedItems"] = %*items
-    apSendJson(res, $json)
-
-  proc handleOutbox(req: HttpRequest, res: HttpResponse) =
-    readWith apLocker:
-      serveCollection(res, apOutboxUrl, outbox)
-
-  proc handleFollowers(req: HttpRequest, res: HttpResponse) =
-    var urls: seq[JsonNode] = @[]
-    readWith apLocker:
-      for fl in followers:
-        urls.add(%* fl.actorUrl)
-    serveCollection(res, apFollowersUrl, urls)
-
-  proc handleFollowing(req: HttpRequest, res: HttpResponse) =
-    serveCollection(res, apFollowingUrl, @[])
-
-  proc apPaths*(): seq[string] =
-    ## The exact HTTP paths served by the ActivityPub endpoints
-    @[
-      "/.well-known/webfinger",
-      "/users/" & apUsername,
-      "/users/" & apUsername & "/inbox",
-      "/users/" & apUsername & "/outbox",
-      "/users/" & apUsername & "/followers",
-      "/users/" & apUsername & "/following"
-    ]
-
-  proc apRoute*(req: HttpRequest, res: HttpResponse) =
-    ## Low-level route dispatcher for the ActivityPub endpoints
-    let path = req.getPath()
-    let actorPath = "/users/" & apUsername
-    if path == "/.well-known/webfinger":
-      if req.getMethod() == HttpGet:
-        handleWebfinger(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
-    elif path == actorPath:
-      if req.getMethod() == HttpGet:
-        handleActor(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
-    elif path == actorPath & "/inbox":
-      if req.getMethod() == HttpPost:
-        handleInbox(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
-    elif path == actorPath & "/outbox":
-      if req.getMethod() == HttpGet:
-        handleOutbox(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
-    elif path == actorPath & "/followers":
-      if req.getMethod() == HttpGet:
-        handleFollowers(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
-    elif path == actorPath & "/following":
-      if req.getMethod() == HttpGet:
-        handleFollowing(req, res)
-      else:
-        res.sendError(Http405, "Method Not Allowed")
+      res.sendError(Http405, "Method Not Allowed")
+  elif path == actorPath & "/inbox":
+    if req.getMethod() == HttpPost:
+      handleInbox(req, res)
     else:
-      res.sendError(Http404, "Not Found")
+      res.sendError(Http405, "Method Not Allowed")
+  elif path == actorPath & "/outbox":
+    if req.getMethod() == HttpGet:
+      handleOutbox(req, res)
+    else:
+      res.sendError(Http405, "Method Not Allowed")
+  elif path == actorPath & "/followers":
+    if req.getMethod() == HttpGet:
+      handleFollowers(req, res)
+    else:
+      res.sendError(Http405, "Method Not Allowed")
+  elif path == actorPath & "/following":
+    if req.getMethod() == HttpGet:
+      handleFollowing(req, res)
+    else:
+      res.sendError(Http405, "Method Not Allowed")
+  else:
+    res.sendError(Http404, "Not Found")

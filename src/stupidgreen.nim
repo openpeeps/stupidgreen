@@ -8,8 +8,7 @@ import std/tables
 
 import pkg/supranim
 import pkg/supranim/core/paths
-when defined supraNative:
-  import pkg/powpow as pw
+import pkg/powpow as pw
 
 import ./app/[structs, cli_commands]
 import ./service/provider/activitypub
