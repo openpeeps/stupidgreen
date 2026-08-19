@@ -6,7 +6,7 @@ if len($this["posts"]) > 0:
           div.d-flex.flex-wrap.gap-2.mb-3
             for $tag in items($post["meta"]["tags"]):
               a.badge.rounded-pill.text-bg-dark href="/tags/" & $tag["slug"]: $tag["name"]
-        h2.h1.fw-bold.mb-2 > a.text-decoration-none href=$post["meta"]["url"]: $post["meta"]["title"]
+        h2.display-5.fw-bold.mb-2 > a.text-decoration-none href=$post["meta"]["url"]: $post["meta"]["title"]
         div.mb-3.d-flex.align-items-center.text-muted.small.flex-wrap.gap-2
           if $post["meta"]["author"] != "":
             span: $post["meta"]["author"]
@@ -15,7 +15,7 @@ if len($this["posts"]) > 0:
           if $this["config"]["content"]["showReadingTime"] == true and toFloat($post["reading_time"]) > 0:
             span: $post["reading_time"] & " min read"
         if $post["meta"]["excerpt"] != "":
-          p.card-text.text-muted.mb-2: $post["meta"]["excerpt"]
+          p.card-text.mb-2: $post["meta"]["excerpt"]
         if $this["config"]["content"]["readMoreText"] != "":
           div.mb-3
             a.link-light.text-decoration-none.fw-medium href=$post["meta"]["url"]: $this["config"]["content"]["readMoreText"] & " &rarr;"

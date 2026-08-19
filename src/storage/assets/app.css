@@ -2,13 +2,23 @@ html[data-bs-theme='dark']:root {
   --bs-body-bg: #131a1a;
   --bs-body-color: #9ea19e;
   --bs-text-heading: #fff;
+  --color-ink: #ececea;
+  --text-small: min(calc(.23 * 1.2vw + 1rem), 1.50rem);
+  --text-small--line-height: 1.70em;
+  --text-small--letter-spacing: -.01em;
 }
 
 body {
-  background-color: #181818;
+  background-color: #10120f;
   background-attachment: fixed;
+  color: var(--color-ink);
   font-family: 'Inter', sans-serif;
-  line-height: 1.8;
+}
+
+body {
+  font-size: var(--text-small);
+  line-height: var(--tw-leading,var(--text-small--line-height));
+  letter-spacing: var(--tw-tracking,var(--text-small--letter-spacing));
 }
 
 code {
@@ -434,8 +444,8 @@ pre code.language-nim.hljs .hljs-echo-keyword {
 .post-ref {
   display: block;
   margin: 1.5rem 0;
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 12px;
+  border: 2px solid rgba(128, 128, 128, 0.25);
+  border-radius: 18px;
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -473,14 +483,15 @@ pre code.language-nim.hljs .hljs-echo-keyword {
 
 .post-ref__title {
   margin: 0 0 0.4rem;
-  font-size: 1.1em;
+  font-size: 1em;
   font-weight: 600;
   color: var(--bs-text-heading, inherit);
 }
 
 .post-ref__excerpt {
   margin: 0;
-  font-size: 0.92em;
+  font-size: 0.82em;
+  line-height: normal;
   color: var(--bs-body-color, inherit);
 }
 

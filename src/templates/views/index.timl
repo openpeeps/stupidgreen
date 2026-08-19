@@ -7,7 +7,7 @@ div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
 
     div.row.d-none.mb-4 > div.col-12
       h1.h3.fw-bold.mb-1: "Latest posts"
-      p.text-muted.mb-0: $this["config"]["metadata"]["description"]
+      p.mb-0: $this["config"]["metadata"]["description"]
 
     @include "post-cards"
     @include "pagination"

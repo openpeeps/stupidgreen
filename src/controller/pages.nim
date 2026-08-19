@@ -33,6 +33,7 @@ proc postJsonRendered(post: Post): JsonNode =
   ## source into HTML (used by templates)
   result = postJson(post)
   result["content"] = %(renderHtml(post))
+  result["content_markdown"] = %post.content
 
 proc configJson(): JsonNode =
   ## Converts the global StupidGreen configuration to a JsonNode

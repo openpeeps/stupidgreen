@@ -1,3 +1,8 @@
+script id="share-markdown-content" type="application/json"
+  toString({
+    markdown: $this["post"]["content_markdown"]
+  })
+
 @include "header"
 div.container-fluid.my-4
   div.row > div.col-xl-9.col-12.mx-auto
@@ -6,7 +11,7 @@ div.container-fluid.my-4
         div.d-flex.flex-wrap.gap-2
           for $tag in items($this["post"]["meta"]["tags"]):
             a.badge.rounded-pill.text-bg-dark href="/tags/" & $tag["slug"]: $tag["name"]
-      h1.display-4.fw-bold.mt-2.mb-2: $this["post"]["meta"]["title"]
+      h1.display-5.fw-bold.mt-2.mb-2: $this["post"]["meta"]["title"]
       div.d-flex.flex-wrap.align-items-center.text-muted.small.gap-2.mt-2
         div
           if $this["post"]["meta"]["author"] != "":
@@ -23,7 +28,7 @@ div.container-fluid.my-4
             span.ms-1: "Share page"
           button type="button" aria-label="Open share options" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split rounded-end-3" data-bs-toggle="dropdown" aria-expanded="false"
             span class="visually-hidden": "Toggle Dropdown"
-          ul.dropdown-menu.dropdown-menu-sm.dropdown-menu-end.rounded-4.shadow-lg style="font-size:0.85em"
+          ul.dropdown-menu.dropdown-menu-sm.dropdown-menu-end.rounded-4.shadow-lg.user-select-none
             li
               a.dropdown-item.d-flex.align-items-center.gap-2
                 div.d-flex.flex-row
@@ -32,9 +37,9 @@ div.container-fluid.my-4
                     span.fw-bold.text-light: "Copy URL"
                     small.text-muted: "Copy the URL of this page"
             li
-              a.dropdown-item.d-flex.align-items-center.gap-2
+              a.dropdown-item.d-flex.align-items-center.gap-2 data-share-markdown=""
                 div.d-flex.flex-row
-                  div.share-svg-icon.me-2: '<svg viewBox="0 0 208 128" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" ><path fill="none" stroke="#FFF" stroke-width="10" d="M15 5h178a10 10 0 0 1 10 10v98a10 10 0 0 1-10 10H15a10 10 0 0 1-10-10V15A10 10 0 0 1 15 5z"/><path fill="#FFF" d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39H30zm125 0-30-33h20V30h20v35h20l-30 33z"/></svg>'
+                  div.share-svg-icon.me-2: '<svg width="24" height="24" viewBox="0 0 208 128" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" ><path fill="none" stroke="#FFF" stroke-width="10" d="M15 5h178a10 10 0 0 1 10 10v98a10 10 0 0 1-10 10H15a10 10 0 0 1-10-10V15A10 10 0 0 1 15 5z"/><path fill="#FFF" d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39H30zm125 0-30-33h20V30h20v35h20l-30 33z"/></svg>'
                   div.d-flex.flex-column
                     span.fw-bold.text-light: "Copy as Markdown"
                     small.text-muted: "Copy page content as Markdown"
@@ -61,7 +66,7 @@ div.container-fluid.my-4
         time.ms-2 datetime=$this["post"]["last_updated"] title=$this["post"]["last_updated"]: $this["post"]["last_updated"]
 
     if $this["config"]["content"]["bottom_navigation"] == true:
-      div.row.g-3.mt-2
+      div.row.g-3.mt-2.d-print-none
         div.col-lg-6.col-md-6
           if $this["post"]["navigation"]["previous"] != nil:
             const previousItem = $this["post"]["navigation"]["previous"]

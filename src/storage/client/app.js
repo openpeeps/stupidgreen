@@ -57,6 +57,7 @@ export default {
     this.initSmoothAnchors();
     this.initExternalLinksDecorator();
     this.initSpotlightSearch();
+    this.initShareMarkdown();
 
     const fetchSwapCallback = function() {
       opts.enableStickySidebar && this.initStickySidebar();
@@ -66,6 +67,7 @@ export default {
     
       this.initSmoothAnchors();
       this.initExternalLinksDecorator();
+      this.initShareMarkdown();
 
       sidebarNavigation.querySelectorAll('a').forEach(link => link.classList.remove('active', 'bg-dark'));
       // after fetching new content, we want to make the current page's link active in the sidebar
@@ -381,6 +383,22 @@ export default {
           location.href = url;
         }
       }).catch(() => location.href = url);
+  },
+
+  initShareMarkdown: function() {
+    document.querySelectorAll('[data-share-markdown]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.querySelector('#share-markdown-content');
+        if (!el) return;
+        const markdown = JSON.parse(el.textContent).markdown;
+        navigator.clipboard.writeText(markdown).then(() => {
+          const label = btn.querySelector('span.fw-bold');
+          const prev = label.textContent;
+          label.textContent = 'Copied!';
+          setTimeout(() => { label.textContent = prev }, 1500);
+        });
+      });
+    });
   },
 
   initExternalLinksDecorator: function() {
