@@ -2,10 +2,6 @@ if len($this["posts"]) > 0:
   for $post in items($this["posts"]):
     article.post-card.mb-5.pb-5
       div
-        if len($post["meta"]["tags"]) > 0:
-          div.d-flex.flex-wrap.gap-2.mb-3
-            for $tag in items($post["meta"]["tags"]):
-              a.badge.rounded-pill.text-bg-dark href="/tags/" & $tag["slug"]: $tag["name"]
         h2.display-5.fw-bold.mb-2 > a.text-decoration-none href=$post["meta"]["url"]: $post["meta"]["title"]
         div.mb-3.d-flex.align-items-center.text-muted.small.flex-wrap.gap-2
           if $post["meta"]["author"] != "":

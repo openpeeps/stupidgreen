@@ -239,7 +239,7 @@ type
       ## ActivityPub federated mode settings
     navbar*: Option[seq[StupidGreenNavItem]]
       ## Top navigation bar configuration
-    footer: StupidGreenFooter
+    footer*: StupidGreenFooter
       ## Footer configuration
 
 var

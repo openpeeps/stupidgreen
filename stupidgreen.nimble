@@ -16,9 +16,10 @@ requires "tim >= 0.2.6"
 requires "marvdown >= 0.1.2"
 requires "openparser >= 0.1.9"
 requires "boogie >= 0.1.1"
-requires "watchout >= 0.2.3"
+requires "watchout >= 0.2.2"
 requires "iconim >= 0.1.0"
 requires "activitypub >= 0.1.0"
+requires "impeller >= 0.1.0"
 
 # Supra is not really a dependency but we want to ensure
 # it's available when building the release version of StupidGreen
