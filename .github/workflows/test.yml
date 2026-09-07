@@ -5,5 +5,4 @@ jobs:
     uses: nimbase/setup-nim-action/.github/workflows/test_clue.yml@main
     with:
       pre-test-command:
-        clue install supra --build
-        clue build --release
+        clue install supra --build && clue build --release
