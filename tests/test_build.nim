@@ -42,6 +42,15 @@ proc runTests() =
   assertFile(dir, "posts/hello-world.md")
   assertFile(dir, "pages/about.md")
   assertFile(dir, "pages/llms.md")
+  assertFile(dir, "themes/default/theme.yaml")
+  assertFile(dir, "themes/default/views/index.timl")
+  assertFile(dir, "themes/default/views/post.timl")
+  assertFile(dir, "themes/default/layouts/base.timl")
+  assertFile(dir, "themes/default/partials/header.timl")
+  assertFile(dir, "themes/default/assets/bootstrap.min.css")
+  assertFile(dir, "themes/default/assets/app.js")
+  assertContains(dir, "stupidgreen.config.yaml", "theme:")
+  assertContains(dir, "themes/default/theme.yaml", "name:")
 
   # add a page in a subdirectory
   createDir(dir / "pages" / "projects")
@@ -100,6 +109,46 @@ proc runTests() =
   let feed = readFile(outDir / "feed.xml")
   if "Demo Project" in feed or "/about" in feed:
     fail("pages must not appear in the RSS feed")
+
+  # --- themes (custom theme with fallback to default) ---
+  createDir(dir / "themes" / "custom" / "views")
+  createDir(dir / "themes" / "custom" / "assets")
+  writeFile(dir / "themes" / "custom" / "theme.yaml",
+    "name: \"custom\"\nversion: \"0.1.0\"\n")
+  writeFile(dir / "themes" / "custom" / "views" / "index.timl",
+    readFile(dir / "themes" / "default" / "views" / "index.timl") &
+    "\n<!-- CUSTOM THEME MARKER -->\n")
+  writeFile(dir / "themes" / "custom" / "assets" / "custom.css",
+    "/* custom theme stylesheet */\n")
+  # project assets always win over theme assets
+  writeFile(dir / "assets" / "custom.css",
+    "/* project override */\n")
+  let themeConfig = dir / "stupidgreen.config.yaml"
+  writeFile(themeConfig,
+    readFile(themeConfig).replace("theme: \"default\"", "theme: \"custom\""))
+  let buildResCustom = execCmdEx(quoteShell(binPath) & " build " & quoteShell(dir))
+  if buildResCustom.exitCode != 0:
+    fail("`stupidgreen build` (custom theme) failed: " & buildResCustom.output)
+  # custom theme's index view is used ...
+  assertContains(outDir, "index.html", "CUSTOM THEME MARKER")
+  # ... while views missing from the custom theme fall back to default
+  assertContains(outDir, "posts/hello-world/index.html", "Welcome to your brand new")
+  # theme assets land in the public dir (custom + fallback default files) ...
+  assertFile(outDir, "assets/custom.css")
+  assertFile(outDir, "assets/bootstrap.min.css")
+  # ... and project files win over theme files with the same name
+  assertContains(outDir, "assets/custom.css", "project override")
+
+  # --- themes (unknown theme fails with a clear error) ---
+  writeFile(themeConfig,
+    readFile(themeConfig).replace("theme: \"custom\"", "theme: \"nope\""))
+  let buildResUnknown = execCmdEx(quoteShell(binPath) & " build " & quoteShell(dir))
+  if buildResUnknown.exitCode == 0:
+    fail("`stupidgreen build` (unknown theme) should fail")
+  if "nope" notin buildResUnknown.output:
+    fail("unknown theme error should name the theme")
+  writeFile(themeConfig,
+    readFile(themeConfig).replace("theme: \"nope\"", "theme: \"default\""))
 
   # --- title-derived slugs (`slugFromTitle`) ---
   let slugDir = createTempDir("stupidgreen_slug_", "")

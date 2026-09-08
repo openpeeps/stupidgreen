@@ -50,8 +50,116 @@ my-blog/
 │   └── projects/
 │       ├── index.md         # /projects
 │       └── demo.md          # /projects/demo
-└── assets/                  # optional `style.css` override
+├── assets/                  # optional `style.css` override
+└── themes/                  # Tim themes (see Themes below)
+    └── default/             # built-in theme, seeded by `stupidgreen new`
+        ├── theme.yaml       # theme manifest (name, version, author, ...)
+        ├── layouts/         # page layouts (`base.timl`)
+        ├── views/           # page views (`index`, `post`, `page`, `tag`, ...)
+        └── partials/        # reusable snippets (`header`, `post-cards`, ...)
 ```
+
+### Themes
+StupidGreen renders pages with [Tim Engine](https://github.com/openpeeps/tim)
+templates organized into themes. Every project has a `themes/` directory; the
+active theme is selected with the top-level `theme` key in
+`stupidgreen.config.yaml` (defaults to `"default"`):
+
+```yaml
+theme: "my-theme"
+```
+
+Each theme lives in `themes/<name>/` and starts with a `theme.yaml` manifest:
+
+```yaml
+name: "my-theme"
+version: "0.1.0"
+author: "Jane Doe"
+url: "https://example.com/my-theme"
+license: "MIT"
+description: "A minimal theme that only restyles the homepage"
+```
+
+Views go in `views/`, layouts in `layouts/`, reusable snippets in `partials/`.
+The built-in `default` theme provides `layouts/base.timl`,
+`views/{index,post,page,tag,category,search}.timl` (plus `views/errors/`)
+and `partials/{header,post-cards,pagination}.timl`.
+
+A theme may override only the templates it cares about: anything missing
+from the active theme falls back to the built-in `default` theme at render
+time. This applies to views, layouts and `@include`d partials alike, so a
+one-file theme is fully functional.
+
+#### Example 1 — restyle the homepage
+Create a theme that only replaces the blog index. Every other page keeps
+rendering from `default`:
+
+```
+themes/minimal/
+├── theme.yaml
+└── views/index.timl
+```
+
+```timl
+@include "header"
+div.container.my-5
+  h1.display-4: $this["config"]["metadata"]["title"]
+  p.lead: $this["config"]["metadata"]["description"]
+  if $this["intro"] != "":
+    article: $this["intro"]
+  @include "post-cards"
+  @include "pagination"
+```
+
+```yaml
+# stupidgreen.config.yaml
+theme: "minimal"
+```
+
+```bash
+stupidgreen build .   # index.html uses minimal, posts/pages use default
+```
+
+The `@include "header"` / `@include "post-cards"` lines above resolve to
+`minimal/partials/` first and fall back to `default/partials/` when the
+minimal theme doesn't ship them.
+
+#### Example 2 — override a partial
+Partials are shared snippets, so overriding one affects every view that
+includes it. To render your own post cards, copy the original as a starting
+point and edit it:
+
+```bash
+mkdir -p themes/minimal/partials
+cp themes/default/partials/post-cards.timl themes/minimal/partials/
+```
+
+```timl
+# themes/minimal/partials/post-cards.timl
+div.post-list
+  for $post in items($this["posts"]):
+    article.mb-4
+      h2.h5: $post["meta"]["title"]
+      a href=$post["url"]: "Read more →"
+```
+
+#### Example 3 — full custom layout
+Override `layouts/base.timl` to take over the whole HTML shell (head, CSS,
+navbar, footer). Views stay compatible as long as the layout renders the
+view output where `base.timl` does:
+
+```bash
+mkdir -p themes/minimal/layouts
+cp themes/default/layouts/base.timl themes/minimal/layouts/
+```
+
+#### Notes
+- Missing `themes/default/` files are seeded automatically on `new`,
+  `start` and `build` without overwriting your customizations, so old
+  projects upgrade themselves on first run.
+- An unknown theme name fails fast and lists the available themes, e.g.
+  `Active theme not found: nope. Available themes: minimal, default`.
+- In development (`start --sync`) theme files hot-reload in the browser.
 
 ### Post front matter
 

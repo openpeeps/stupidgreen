@@ -668,6 +668,31 @@ initService Markdown[Global]:
         result.add(line[i])
         inc i
 
+    proc resolvePostRefs*(content: string): string =
+      ## Replaces `@<post>.md` references with portable Markdown links
+      ## (`[title](url)`). Unknown references are left as plain text.
+      ## Used for the "Copy as Markdown" share payload so copied content
+      ## stays meaningful outside StupidGreen.
+      result = newStringOfCap(content.len)
+      var i = 0
+      while i < content.len:
+        if content[i] == '@' and (i == 0 or content[i - 1] != '\\'):
+          var j = i + 1
+          var name = ""
+          while j < content.len and content[j] in {'a'..'z', 'A'..'Z', '0'..'9',
+                                                  '.', '_', '-', '/'}:
+            name.add(content[j])
+            inc j
+          if name.endsWith(".md") and name.len > 3 and
+             (j >= content.len or content[j] notin {'a'..'z', 'A'..'Z', '0'..'9', '_', '-'}):
+            let post = findPostRef(name)
+            if post.meta.url.len > 0:
+              result.add("[" & post.meta.title & "](" & post.meta.url & ")")
+              i = j
+              continue
+        result.add(content[i])
+        inc i
+
     proc setupMarkdownOptions() =
       ## Configure Marvdown options based on the StupidGreen configuration
       var allowedHtmlTags: seq[HtmlTag]
@@ -702,9 +727,9 @@ initService Markdown[Global]:
       createDir(storePath)
       createDir(contentPath)
       createDir(pagesPath)
-      const defaultHomePage = staticRead(storagePath / "stubs" / "index.md")
-      if not fileExists(contentPath / "index.md"):
-        writeFile(contentPath / "index.md", defaultHomePage)
+      # Note: never create content files here. The default `posts/index.md`
+      # is written only once by `stupidgreen new`; a deleted index.md stays
+      # deleted.
       setupMarkdownOptions()
       openStore()
 
@@ -718,10 +743,9 @@ initService Markdown[Global]:
       createDir(pagesPath)
       createDir(storePath)
 
-      const defaultHomePage = staticRead(storagePath / "stubs" / "index.md")
-      if not fileExists(contentPath / "index.md"):
-        # ensure there's at least an index.md to start with
-        writeFile(contentPath / "index.md", defaultHomePage)
+      # Note: never create content files here. The default `posts/index.md`
+      # is written only once by `stupidgreen new`; a deleted index.md stays
+      # deleted.
 
       setupMarkdownOptions()
 

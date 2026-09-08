@@ -6,7 +6,6 @@ html data-bs-theme="dark"
     meta name="description" content=$this["config"]["metadata"]["description"]
     link rel="icon" href="/assets/favicon-32x32.png" type="image/x-icon"
     link rel="stylesheet" href="/assets/bootstrap.min.css"
-    link rel="stylesheet" href="/assets/app.css"
     link rel="stylesheet" href="/assets/style.css"
     link rel="stylesheet" href="/assets/print.css" media="print"
     link rel="alternate" type="application/rss+xml" title="RSS Feed" href=$this["site"]["url"] & "/feed.xml"

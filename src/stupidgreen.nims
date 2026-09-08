@@ -1,12 +1,11 @@
 import std/[macros, os]
 
 when defined(macosx):
-  --passL:"/usr/local/lib/libmonocypher.a"
   --passC:"-I /opt/local/include"
   --passC:"-I /usr/local/include"
   --passC:"-Wno-incompatible-function-pointer-types"
 elif defined(linux):
-  --passL:"-L/usr/local/lib/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib/lib -Wl,-rpath,/usr/local/lib -lmonocypher"
+  --passL:"-L/usr/local/lib/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib/lib -Wl,-rpath,/usr/local/lib"
   --passC:"-I /usr/include" 
 
 --define:ssl
@@ -38,17 +37,15 @@ else:
     # Embed Supranim config files (config/*.yml) into the binary at
     # compile time instead of creating a config/ directory at runtime
 
-  const embedAssetsPath {.strdefine.} = ""
-  let outputEmbedAssets = getProjectPath().parentDir() / ".cache" / "embed_assets.nim"
-  let assetsPath = absolutePath(joinPath(getProjectPath() / "storage", "assets"))
-  if dirExists(assetsPath):
-    exec "supra bundle.assets \"" & assetsPath & "\" \"" & outputEmbedAssets & "\""
+  # Note: `src/storage/assets/` is intentionally NOT bundled. Theme assets
+  # ship inside each theme bundle below and are seeded/copied from the
+  # project at runtime.
 
-  for dir in ["views", "layouts", "partials"]:
-    let outputEmbedTemplates = getProjectPath().parentDir() / ".cache" / "embed_templates_" & dir & ".nim"
-    let templatesPath = absolutePath(joinPath(getProjectPath() / "templates" / dir))
-    if dirExists(templatesPath):
-      exec "supra bundle.assets \"" & templatesPath & "\" \"" & outputEmbedTemplates & "\" --skip-prefix"
+  for themeDir in ["default"]:
+    let outputEmbedTheme = getProjectPath().parentDir() / ".cache" / "embed_themes_" & themeDir & ".nim"
+    let themePath = absolutePath(joinPath(getProjectPath() / "themes" / themeDir))
+    if dirExists(themePath):
+      exec "supra bundle.assets \"" & themePath & "\" \"" & outputEmbedTheme & "\""
 
   let outputSVGIcons = getProjectPath().parentDir() / ".cache" / "embed_storage_icons.nim"
   let iconsPath = absolutePath(joinPath(getProjectPath() / "storage", "icons"))

@@ -14,6 +14,7 @@ import pkg/kapsis/interactive/prompts
 import pkg/supranim/support/slug
 
 import ./structs
+import pkg/supranim/service/storage
 import ../service/provider/[markdown, tim, search, feed, activitypub, assets]
 
 const
@@ -42,6 +43,136 @@ proc loadStupidGreen(projectPath: string) =
     QuitFailure.quit
   globalStupidGreenConfig.ensureLeadingSlash()
 
+const defaultThemeName* = "default"
+  ## Name of the built-in fallback theme shipped with StupidGreen
+
+proc activeThemeName*(): string =
+  ## The theme selected in `stupidgreen.config`, defaulting to
+  ## the built-in theme when unset (e.g. configs predating themes).
+  let t = globalStupidGreenConfig.theme.strip()
+  if t.len > 0: t else: defaultThemeName
+
+proc seedDefaultTheme*(projectPath: string) =
+  ## Ensures `<project>/themes/default/` contains every file shipped with
+  ## the built-in default theme. Only missing files are written, so user
+  ## customizations are never overwritten. This also upgrades projects
+  ## created before theme support existed. A symlinked theme dir is never
+  ## written through — it is left for its devel source to manage.
+  let destRoot = projectPath / "themes" / defaultThemeName
+  var seeded = 0
+  template seedFile(rel, content: string) =
+    let dest = destRoot / rel
+    if not fileExists(dest):
+      createDir(dest.parentDir)
+      writeFile(dest, content)
+      inc seeded
+  if symlinkExists(destRoot):
+    # symlinked theme (devel source via `ln -s`): never write through
+    # the link, its source tree manages the files
+    display("Theme \"" & defaultThemeName & "\" is symlinked, skipping seed")
+    return
+  when defined release:
+    # seed from the default theme bundle embedded in the binary.
+    # Text files come from the "default" directory table, binary files
+    # (images, fonts) from the raw asset store.
+    const prefix = "/default/"
+    let sta = staticAssets()
+    for key in sta.listAssetsDir("/default"):
+      if not key.startsWith(prefix):
+        continue
+      var content: string
+      if sta.hasAsset(key):
+        content = cast[string](sta.get(key))
+      else:
+        content = sta.directory("default")[key]
+      seedFile(key[prefix.len .. ^1], content)
+  else:
+    let srcRoot = supranim.basePath / "themes" / defaultThemeName
+    if not dirExists(srcRoot):
+      displayError("Default theme not found in StupidGreen sources: " & srcRoot, quitProcess = true)
+    for srcPath in walkDirRec(srcRoot,
+                              yieldFilter = {pcFile, pcLinkToFile},
+                              followFilter = {pcDir, pcLinkToDir}):
+      if not fileExists(srcPath):
+        continue
+      let rel = relativePath(srcPath, srcRoot)
+      if extractFilename(rel).startsWith("."):
+        continue
+      seedFile(rel, readFile(srcPath))
+  if seeded > 0:
+    display("Seeded " & $seeded & " default theme file(s) into themes/" & defaultThemeName & "/")
+
+proc initThemeDisks*(projectPath: string) =
+  ## Registers runtime storage disks for public assets:
+  ## `project-assets` (read/write), `theme-active` and `theme-default`
+  ## (read-only). Used to serve `/assets/*` with project-first precedence.
+  storage.init(App)
+  storage().addDisk("project-assets",
+    newLocalDriver(projectPath / "assets"))
+  let active = activeThemeName()
+  storage().addDisk("theme-active",
+    newLocalDriver(projectPath / "themes" / active / "assets"),
+    PolicyRules(readOnly: true))
+  storage().addDisk("theme-default",
+    newLocalDriver(projectPath / "themes" / defaultThemeName / "assets"),
+    PolicyRules(readOnly: true))
+
+proc resolvePublicAsset*(rel: string): string =
+  ## Resolves a public `/assets/...` path to an absolute file path,
+  ## probing project assets first, then the active theme, then the
+  ## default (fallback) theme. Returns "" when no disk provides it.
+  let relPath = normalizedPath(rel.strip(chars = {'/'}, leading = true))
+  if relPath.len == 0 or relPath.startsWith(".") or relPath == ".." or
+     relPath.startsWith(".." / ""):
+    return ""
+  for diskName in ["project-assets", "theme-active", "theme-default"]:
+    try:
+      let d = storage().rawDisk(diskName)
+      if d.exists(relPath):
+        let full = d.root / relPath
+        if fileExists(full):
+          return full
+    except StorageError:
+      continue
+  return ""
+
+proc copyThemeAssetsToPublic*(projectPath: string) =
+  ## Copies fallback + active theme assets into `<project>/assets/`, the
+  ## directory used for public serving. Same-named files are always
+  ## overwritten so the served files match the active theme — customize
+  ## `themes/<name>/assets/style.css` itself, not the public copy.
+  ## Files the theme doesn't ship are left alone.
+  let destRoot = projectPath / "assets"
+  createDir(destRoot)
+  var copied = 0
+  proc copyThemeDir(themeName: string) =
+    let assetsDir = projectPath / "themes" / themeName / "assets"
+    if not dirExists(assetsDir):
+      return
+    # follow symlinks so symlinked theme trees (theme dev via `ln -s`)
+    # copy exactly like regular directories
+    for fpath in walkDirRec(assetsDir,
+                            yieldFilter = {pcFile, pcLinkToFile},
+                            followFilter = {pcDir, pcLinkToDir}):
+      if not fileExists(fpath):
+        continue
+      let rel = relativePath(fpath, assetsDir)
+      if extractFilename(rel).startsWith("."):
+        continue
+      let dest = destRoot / rel
+      try:
+        createDir(dest.parentDir)
+        copyFile(fpath, dest)
+        inc copied
+      except:
+        display("Could not copy theme asset: " & rel)
+  copyThemeDir(defaultThemeName)
+  if activeThemeName() != defaultThemeName:
+    copyThemeDir(activeThemeName())
+  if copied > 0:
+    display("Public assets synced from theme \"" & activeThemeName() &
+      "\" (" & $copied & " file(s) into assets/)")
+
 proc newCommand*(v: Values) =
   ## Create a new StupidGreen project in the specified directory
   let dirPath = absolutePath($(v.get("directory").getStr))
@@ -61,6 +192,7 @@ proc newCommand*(v: Values) =
   writeFile(dirPath / "posts" / "hello-world.md", samplePost)
   writeFile(dirPath / "pages" / "about.md", samplePage)
   writeFile(dirPath / "pages" / "llms.md", sampleLlms)
+  seedDefaultTheme(dirPath)
   display("Created a new StupidGreen project in " & dirPath)
   display("Next steps:")
   display("  cd " & dirPath)
@@ -106,6 +238,15 @@ proc startCommand*(v: Values) =
 
   loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
+  seedDefaultTheme(projectPath)
+  initThemeDisks(projectPath)
+  if v.has("--devMode"):
+    # theme development: serve theme assets live from source through the
+    # storage disks, without copying anything into the public `assets/` dir.
+    # Works with symlinked theme dirs (`ln -s <source> themes/<name>`).
+    display("devMode: serving theme assets live from source, no public copy")
+  else:
+    copyThemeAssetsToPublic(projectPath)
 
   # init ActivityPub federation (no-op when disabled in the config)
   var base = globalStupidGreenConfig.metadata.url
@@ -121,6 +262,8 @@ proc buildCommand*(v: Values) =
 
   loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
+  seedDefaultTheme(projectPath)
+  initThemeDisks(projectPath)
 
   let app = appInstance()
   let installPath = app.applicationPaths.getInstallationPath
@@ -135,46 +278,47 @@ proc buildCommand*(v: Values) =
   tim.buildSetup(
     src = App.config("tim.source").getStr,
     output = App.config("tim.output").getStr,
-    basePath = supranim.basePath,
+    basePath = projectPath,
     global = %*{
       "isDev": false,
       "enableMarkdownSync": false,
       "browserSync": {},
-    }
+    },
+    activeTheme = activeThemeName(),
+    fallbackTheme = defaultThemeName
   )
 
   discard existsOrCreateDir(outputPath)
   discard existsOrCreateDir(outputPath / "assets")
 
-  when defined release:
-    # In release builds, assets are embedded in the binary;
-    # write them out to disk so the static site has them
-    let sta = staticAssets()
-    let assetKeys = sta.listAssetsDir("/assets")
-    for key in assetKeys:
-      let relPath = key.strip(chars={'/'}, leading=true)
-      let dest = outputPath / relPath
-      createDir(dest.parentDir)
-      if sta.hasAsset(key):
-        writeFile(dest, cast[string](sta.get(key)))
-      else:
-        writeFile(dest, sta.directory("assets")[key])
-  else:
-    let assetsSrc = supranim.basePath / "storage" / "assets"
-    if dirExists(assetsSrc):
-      for kind, fpath in walkDir(assetsSrc):
-        if kind == pcFile:
-          let (_, name, ext) = splitFile(fpath)
-          try:
-            copyFile(fpath, outputPath / "assets" / name & ext)
-          except:
-            display("Could not copy asset: " & name & ext)
-    else:
-      display("No built-in assets found, skipping asset copy")
+  proc copyDiskAssets(diskName: string) =
+    ## Copies every file from a theme/project storage disk into the build
+    ## output. Called fallback-first (then active theme, then project), so
+    ## later copies overwrite earlier ones and project assets always win.
+    var d: StorageDriver
+    try:
+      d = storage().rawDisk(diskName)
+    except StorageError:
+      return
+    var entries: seq[FileMetadata]
+    try:
+      entries = d.list("", recursive = true)
+    except StorageError:
+      return
+    for e in entries:
+      if e.isDir or extractFilename(e.path).startsWith("."):
+        continue
+      let dest = outputPath / "assets" / e.path
+      try:
+        createDir(dest.parentDir)
+        writeFile(dest, d.read(e.path))
+      except:
+        display("Could not copy asset: " & e.path)
 
-  let projectAssetsCss = projectPath / "assets" / "style.css"
-  if fileExists(projectAssetsCss):
-    copyFile(projectAssetsCss, outputPath / "assets" / "style.css")
+  copyDiskAssets("theme-default")
+  if activeThemeName() != defaultThemeName:
+    copyDiskAssets("theme-active")
+  copyDiskAssets("project-assets")
 
   proc configJson(): JsonNode =
     ## Converts the global StupidGreen configuration to a JsonNode
@@ -193,6 +337,7 @@ proc buildCommand*(v: Values) =
     ## source into HTML (used by templates)
     result = postJson(post)
     result["content"] = %(renderHtml(post))
+    result["content_markdown"] = %resolvePostRefs(post.content)
 
   proc writeRouteHtml(view, routePath: string; local: JsonNode) =
     ## Renders a route using Tim and writes it to the output directory

@@ -31,7 +31,7 @@ threads: 1""")
 
   # setup tim configuration with defaults
   let timConfig = parseYaml("""
-source: ./templates
+source: ./themes
 output: ./storage/templates
 indent: 2
 sync: false
@@ -47,7 +47,7 @@ App.cli do:
   post string(title):
     ## Create a new blog post in the current project
 
-  start path(directory), ?bool("--sync"), ?port("--port"):
+  start path(directory), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
     ## Init the app with the given installation path
 
   build path(directory):
@@ -67,14 +67,16 @@ App.services do:
   tim.init(
     App.config("tim.source").getStr,
     App.config("tim.output").getStr,
-    supranim.basePath,
+    if stupidgreenProjectPath.len > 0: stupidgreenProjectPath else: supranim.basePath,
     global = %*{
       "isDev": (when defined release: false else: true),
       "enableMarkdownSync": App.config("tim.sync").getBool,
       "browserSync": {
         "appPort": App.config("server.port").getInt,
       }
-    }
+    },
+    activeTheme = activeThemeName(),
+    fallbackTheme = defaultThemeName
   )
 
   # init Search Service
@@ -84,36 +86,37 @@ App.services do:
   markdown.init(App)
 
   when defined release:
-    # init static assets
-    assets.embedDirectory("assets", "assets")
+    # Note: theme assets are NOT embedded as servable files. The embedded
+    # default theme bundle only seeds `<project>/themes/default/`; the
+    # built site and the dev server always read assets from the project.
+    # (Tabler SVG icons for `icon()` are still embedded below.)
 
-    # embed Tim Engine templates directly into the binary for production
-    assets.embedDirectory("templates/layouts", "templates/layouts")
-    assets.embedDirectory("templates/views", "templates/views")
-    assets.embedDirectory("templates/partials", "templates/partials")
+    # embed Tim Engine default theme directly into the binary for production.
+    # Project themes resolve from `<project>/themes/` at runtime; the embedded
+    # bundle seeds `themes/default/` into projects missing it.
+    assets.embedDirectory("themes/default", "themes/default")
 
     # embed Tabler SVG icons directly into the binary for production
     assets.embedDirectory("storage/icons", "storage/icons")
 
 when defined release:
-  # Preload embedded assets into memory for faster access in production
-  assets.preloadBundle("assets")
+  # Preload embedded resources into memory (default theme bundle used for
+  # seeding `themes/` into projects; icons used by `icon()` in templates)
   assets.preloadBundle("storage/icons")
 
-  assets.preloadBundle("templates/layouts")
-  assets.preloadBundle("templates/views")
-  assets.preloadBundle("templates/partials")
+  assets.preloadBundle("themes/default")
 
-  App.withAssetsHandler:
-    proc (req: var Request, res: var Response, hasFoundResource: var bool) =
-      # Serve static assets from the embedded StaticBundle
-      req.sendEmbeddedAsset(req.path, res.getHeaders(), hasFoundResource)
-      if not hasFoundResource:
-        # If not found in embedded assets, try serving from
-        # the local `/assets` directory
-        if req.path.startsWith("/assets/"):
-          hasFoundResource =
-            req.sendAssets(stupidgreenProjectPath, req.path, res.getHeaders())
+App.withAssetsHandler:
+  proc (req: var Request, res: var Response, hasFoundResource: var bool) =
+    # Serve `/assets/*` from the runtime storage disks: project assets
+    # first, then the active theme, then the default (fallback) theme.
+    # Works identically in dev and release; theme assets are never copied
+    # into the project.
+    if req.path.startsWith("/assets/"):
+      let full = resolvePublicAsset(req.path["/assets/".len .. ^1])
+      if full.len > 0:
+        req.sendAssetFile(full, res.getHeaders())
+        hasFoundResource = true
 
 #
 # Starts the application. This will start the HTTP

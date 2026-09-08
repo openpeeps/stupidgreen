@@ -188,7 +188,7 @@ type
       ## Bootstrap 5 container width class for the main content area
     content_width*: string = "col-lg-8"
       ## Bootstrap 5 column width class for the content area
-    background_noise_opacity*: float = 0.03
+    background_noise_opacity*: float = 0.30
       ## Opacity of the background noise texture (0.0 to 1.0)
 
   PaginationSettings* = object
@@ -223,6 +223,10 @@ type
     ## Configuration options for StupidGreen.
     ## This object is automatically populated from `StupidGreen.config.yaml`
     ## or `StupidGreen.config.json` file in the current directory.
+    theme*: string = "default"
+      ## The active Tim theme, resolved from `<project>/themes/<name>`.
+      ## Templates missing from the active theme fall back to the
+      ## `default` theme shipped with StupidGreen.
     metadata*: StupidGreenMetadata
       ## Metadata information for the site
     appearance*: AppearanceSettings
