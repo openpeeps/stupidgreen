@@ -138,7 +138,7 @@ initService Tim[Global]:
         respond(httpCode, output)
       except TimEngineError as e:
         displayError("<services.tim> " & e.msg)
-        respond(Http500, render(timInstance, "errors.5xx", layout, data = %*{
+        respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
           "post": {
             "meta": {
               "title": "Something went wrong",
@@ -150,7 +150,7 @@ initService Tim[Global]:
       except Exception as e:
         displayError("<services.tim> " & e.msg)
         error("error", getCurrentException())
-        respond(Http500, render(timInstance, "errors.5xx", layout, data = %*{
+        respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
           "post": {
             "meta": {
               "title": "Something went wrong",
@@ -168,7 +168,7 @@ initService Tim[Global]:
         respond(httpCode, output)
       except TimEngineError as e:
         logger("Tim Engine: " & e.msg, ERROR)
-        respond(Http500, renderView(timInstance, "errors.5xx", data = %*{
+        respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
           "post": {
             "meta": {
               "title": "Something went wrong",
@@ -180,7 +180,7 @@ initService Tim[Global]:
       except Exception as e:
         logger("Tim Engine: " & e.msg, ERROR)
         error("error", getCurrentException())
-        respond(Http500, renderView(timInstance, "errors.5xx", data = %*{
+        respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
           "post": {
             "meta": {
               "title": "Something went wrong",

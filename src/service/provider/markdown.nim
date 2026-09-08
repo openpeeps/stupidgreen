@@ -287,10 +287,26 @@ initService Markdown[Global]:
 
       # table of contents (`getSelectorItems` yields document order with
       # explicit fields: `anchor` is the slugified id, `title` the heading
-      # text, `level` the heading level 1-6)
+      # text, `level` the heading level 1-6). Nested items get a tree
+      # branch marker: "mid" unless last in their sibling group ("last").
       var toc: seq[Heading]
       for item in md.getSelectorItems():
-        toc.add(Heading(id: item.anchor, title: item.title, level: item.level))
+        toc.add(Heading(id: item.anchor, title: item.title, level: item.level, branch: ""))
+      if toc.len > 0:
+        var baseLevel = toc[0].level
+        for h in toc:
+          baseLevel = min(baseLevel, h.level)
+        for i in 0 ..< toc.len:
+          if toc[i].level > baseLevel:
+            # last in its sibling group when the next item back at this
+            # level or higher is an ancestor (or there is none) — a
+            # following sibling at the same level means more to come
+            var isLast = true
+            for j in i + 1 ..< toc.len:
+              if toc[j].level <= toc[i].level:
+                isLast = toc[j].level < toc[i].level
+                break
+            toc[i].branch = if isLast: "last" else: "mid"
 
       result = Post(
         meta: PostMeta(

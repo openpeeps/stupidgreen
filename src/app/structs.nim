@@ -37,6 +37,9 @@ type
       ## The heading text
     level*: int
       ## The heading level (1-6)
+    branch*: string
+      ## Tree branch marker for nested items ("mid", "last", or "" for top level).
+      ## Templates draw the branch with CSS pseudo-elements.
 
   PostMeta* = object
     ## Metadata for a blog post, extracted from the YAML front matter
