@@ -31,27 +31,27 @@ threads: 1""")
 
   # setup tim configuration with defaults
   let timConfig = parseYaml("""
-source: ./themes
-output: ./storage/templates
-indent: 2
-sync: false
-""")
+  source: ./themes
+  output: ./storage/templates
+  indent: 2
+  sync: false
+  """)
 
   App.configs["server"] = serverConfig
   App.configs["tim"] = timConfig
 
 App.cli do:
-  new string(directory), ?bool("--json"):
-    ## Create a new StupidGreen project in the specified directory
+  new string(project), ?bool("--json"):
+    ## Create a new SG project
 
   post string(title):
     ## Create a new blog post in the current project
 
-  start path(directory), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
-    ## Init the app with the given installation path
+  run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
+    ## Create a new SG instance for given project
 
-  build path(directory):
-    ## Generate static HTML website
+  build path(project):
+    ## Generate static HTML website from SG project
 
 #
 # Initialize available Service Providers.

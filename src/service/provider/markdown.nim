@@ -285,10 +285,12 @@ initService Markdown[Global]:
       if meta.kind == JObject and meta.hasKey("series"):
         series = meta["series"].getStr()
 
-      # table of contents
+      # table of contents (`getSelectorItems` yields document order with
+      # explicit fields: `anchor` is the slugified id, `title` the heading
+      # text, `level` the heading level 1-6)
       var toc: seq[Heading]
-      for heading, anchor in md.getSelectors():
-        toc.add(Heading(id: anchor, title: heading, level: 0))
+      for item in md.getSelectorItems():
+        toc.add(Heading(id: item.anchor, title: item.title, level: item.level))
 
       result = Post(
         meta: PostMeta(

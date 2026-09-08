@@ -175,7 +175,7 @@ proc copyThemeAssetsToPublic*(projectPath: string) =
 
 proc newCommand*(v: Values) =
   ## Create a new StupidGreen project in the specified directory
-  let dirPath = absolutePath($(v.get("directory").getStr))
+  let dirPath = absolutePath($(v.get("project").getStr))
   if dirExists(dirPath):
     # checking if the directory is empty
     if walkDir(dirPath).toSeq().len > 0:
@@ -222,11 +222,11 @@ proc postCommand*(v: Values) =
   display("Created post: " & fpath)
   quit(0)
 
-proc startCommand*(v: Values) =
+proc runCommand*(v: Values) =
   ## Start the StupidGreen development server
   initStartCommand(v, createDirs = false)
   let
-    projectPath = absolutePath($(v.get("directory").getPath))
+    projectPath = absolutePath($(v.get("project").getPath))
     port =
       if v.has("--port"): v.get("--port").getPort
       else: 8000.Port
@@ -258,7 +258,7 @@ proc buildCommand*(v: Values) =
   ## Build the blog for production - generates static HTML website
   initStartCommand(v, createDirs = false)
   let
-    projectPath = absolutePath($(v.get("directory").getPath))
+    projectPath = absolutePath($(v.get("project").getPath))
 
   loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
