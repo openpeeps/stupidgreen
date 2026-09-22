@@ -22,23 +22,20 @@ App.init(skipLocalConfig = true) do:
   #
   # This is necessary for the application to run, and will be
   # overridden by the user's local configuration when they run the app.
-  App.configs = newOrderedTable[string, YamlObject]()
-  let serverConfig = parseYaml("""
+  App.configs = newOrderedTable[string, Configuration]()
+  App.configs["server"] = parseConfiguration(".yml", """
 type: "AF_INET"
 port: 8000
 address: "127.0.0.1"
 threads: 1""")
 
   # setup tim configuration with defaults
-  let timConfig = parseYaml("""
+  App.configs["tim"] = parseConfiguration(".yml", """
   source: ./themes
   output: ./storage/templates
   indent: 2
   sync: false
   """)
-
-  App.configs["server"] = serverConfig
-  App.configs["tim"] = timConfig
 
 App.cli do:
   new string(project), ?bool("--json"):
@@ -46,6 +43,9 @@ App.cli do:
 
   post string(title):
     ## Create a new blog post in the current project
+
+  theme string(name):
+    ## Create a new blank SG theme in themes/<name>
 
   run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
     ## Create a new SG instance for given project
@@ -128,14 +128,11 @@ App.run do:
   # StupidGreen WebSocket endpoint for live-reloading.
   if enableBrowserSync:
     App.server.registerCallback("/ws",
-      proc (req: pointer, arg: pointer) {.cdecl, gcsafe.} =
-        {.gcsafe.}:
-          let ppReq = cast[pw.HttpRequest](req)
-          let ppRes = cast[pw.HttpResponse](arg)
-          discard websocketUpgrade(ppRes, ppReq,
-            onOpen = onOpenCallback,
-            onClose = onClose,
-            onError = onError)
+      proc (req: pw.HttpRequest, res: pw.HttpResponse) {.gcsafe.} =
+        discard websocketUpgrade(res, req,
+          onOpen = onOpenCallback,
+          onClose = onClose,
+          onError = onError)
     )
 
   # ActivityPub federation endpoints (WebFinger, actor, inbox, outbox, ...).
@@ -143,10 +140,7 @@ App.run do:
   if activitypub.apEnabled():
     for apPath in activitypub.apPaths():
       App.server.registerCallback(apPath,
-        proc (req: pointer, arg: pointer) {.cdecl, gcsafe.} =
+        proc (req: pw.HttpRequest, res: pw.HttpResponse) {.gcsafe.} =
           {.gcsafe.}:
-            activitypub.apRoute(
-              cast[pw.HttpRequest](req),
-              cast[pw.HttpResponse](arg)
-            )
+            activitypub.apRoute(req, res)
       )

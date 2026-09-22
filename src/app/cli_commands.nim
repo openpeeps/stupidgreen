@@ -3,7 +3,7 @@
 # (c) 2026 George Lemon | AGPL-3.0-or-later License
 #          Made by Humans from OpenPeeps
 
-import std/[os, sequtils, strutils, tables, json, times]
+import std/[os, osproc, sequtils, strutils, tables, json, times]
 from std/net import Port
 
 import pkg/openparser/[json, yaml]
@@ -28,6 +28,21 @@ const
     # a sample page written when scaffolding a new project
   sampleLlms = staticRead(storagePath / "stubs" / "llms.md")
     # a sample `llms.md` written when scaffolding a new project
+  themeStubThemeYaml = staticRead(storagePath / "stubs" / "theme" / "theme.yaml")
+    # manifest template for `stupidgreen theme` (`__THEME_NAME__`/`__THEME_AUTHOR__` replaced at write time)
+  themeStubBase = staticRead(storagePath / "stubs" / "theme" / "layouts" / "base.timl")
+  themeStubHeader = staticRead(storagePath / "stubs" / "theme" / "partials" / "header.timl")
+  themeStubPostCards = staticRead(storagePath / "stubs" / "theme" / "partials" / "post-cards.timl")
+  themeStubPagination = staticRead(storagePath / "stubs" / "theme" / "partials" / "pagination.timl")
+  themeStubIndex = staticRead(storagePath / "stubs" / "theme" / "views" / "index.timl")
+  themeStubPage = staticRead(storagePath / "stubs" / "theme" / "views" / "page.timl")
+  themeStubPost = staticRead(storagePath / "stubs" / "theme" / "views" / "post.timl")
+  themeStubTag = staticRead(storagePath / "stubs" / "theme" / "views" / "tag.timl")
+  themeStubCategory = staticRead(storagePath / "stubs" / "theme" / "views" / "category.timl")
+  themeStubSearch = staticRead(storagePath / "stubs" / "theme" / "views" / "search.timl")
+  themeStub4xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "4xx.timl")
+  themeStub5xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "5xx.timl")
+  themeStubStyle = staticRead(storagePath / "stubs" / "theme" / "assets" / "style.css")
 
 proc loadStupidGreen(projectPath: string) =
   ## Loads the StupidGreen configuration from the project directory
@@ -176,10 +191,6 @@ proc copyThemeAssetsToPublic*(projectPath: string) =
 proc newCommand*(v: Values) =
   ## Create a new StupidGreen project in the specified directory
   let dirPath = absolutePath($(v.get("project").getStr))
-  if dirExists(dirPath):
-    # checking if the directory is empty
-    if walkDir(dirPath).toSeq().len > 0:
-      displayError("Directory is not empty.", quitProcess = true)
   createDir(dirPath)
   if v.has("--json"):
     writeFile(dirPath / "stupidgreen.config.json", parseYaml(tpl).toJson())
@@ -222,8 +233,80 @@ proc postCommand*(v: Values) =
   display("Created post: " & fpath)
   quit(0)
 
+proc scaffoldTheme*(projectPath, name, author: string): int =
+  ## Writes a blank theme skeleton into `<projectPath>/themes/<name>/`.
+  ## Returns the number of files written. The caller must ensure the
+  ## destination does not exist yet.
+  let themeFiles = [
+    ("theme.yaml", themeStubThemeYaml),
+    ("layouts/base.timl", themeStubBase),
+    ("partials/header.timl", themeStubHeader),
+    ("partials/post-cards.timl", themeStubPostCards),
+    ("partials/pagination.timl", themeStubPagination),
+    ("views/index.timl", themeStubIndex),
+    ("views/page.timl", themeStubPage),
+    ("views/post.timl", themeStubPost),
+    ("views/tag.timl", themeStubTag),
+    ("views/category.timl", themeStubCategory),
+    ("views/search.timl", themeStubSearch),
+    ("views/errors/4xx.timl", themeStub4xx),
+    ("views/errors/5xx.timl", themeStub5xx),
+    ("assets/style.css", themeStubStyle),
+  ]
+  result = 0
+  for (rel, content) in themeFiles:
+    let dest = projectPath / "themes" / name / rel
+    createDir(dest.parentDir)
+    var text = content
+    if rel == "theme.yaml":
+      text = text.replace("__THEME_NAME__", name).replace("__THEME_AUTHOR__", author)
+    writeFile(dest, text)
+    inc result
+
+proc themeCommand*(v: Values) =
+  ## Create a new blank StupidGreen theme in `themes/<name>` of the
+  ## current project. Never touches `stupidgreen.config` — activate the
+  ## theme by setting `theme: "<name>"` yourself (theme work usually
+  ## happens in dev mode).
+  let name = $(v.get("name").getStr)
+  if name.len == 0:
+    displayError("Theme name cannot be empty.", quitProcess = true)
+  for c in name:
+    if c notin {'a'..'z', '0'..'9', '-', '_'}:
+      displayError("Invalid theme name \"" & name &
+        "\". Use lowercase letters, digits, dashes and underscores.", quitProcess = true)
+  if name == defaultThemeName:
+    displayError("Cannot create a theme named \"" & name &
+      "\" — it is the built-in fallback theme.", quitProcess = true)
+  let projectPath = getCurrentDir()
+  if not fileExists(projectPath / "stupidgreen.config.yml") and
+     not fileExists(projectPath / "stupidgreen.config.yaml") and
+     not fileExists(projectPath / "stupidgreen.config.json"):
+    displayError("No StupidGreen project found in the current directory. Run `stupidgreen new <directory>` first.", quitProcess = true)
+  let destRoot = projectPath / "themes" / name
+  if fileExists(destRoot) or dirExists(destRoot) or symlinkExists(destRoot):
+    displayError("A theme already exists: " & destRoot, quitProcess = true)
+  var author = ""
+  try:
+    # prefer the git user name for the theme manifest author
+    let (gitName, gitCode) = execCmdEx("git config user.name")
+    if gitCode == 0 and gitName.strip().len > 0:
+      author = gitName.strip().replace("\"", "")
+  except OSError:
+    discard
+  let written = scaffoldTheme(projectPath, name, author)
+  display("Created a new StupidGreen theme in " & destRoot & " (" & $written & " files)")
+  display("Next steps:")
+  display("  set `theme: \"" & name & "\"` in stupidgreen.config.yaml to activate it")
+  display("  stupidgreen run --sync   # preview with live reload")
+  quit(0)
+
 proc runCommand*(v: Values) =
   ## Start the StupidGreen development server
+  # compat: supranim 0.1.10 `initStartCommand` still reads the project
+  # path from the legacy `directory` key (develop 0.1.11 uses `project`).
+  # Mirror it so both supranim generations work; drop when 0.1.11 lands.
+  v[]["directory"] = v.get("project")
   initStartCommand(v, createDirs = false)
   let
     projectPath = absolutePath($(v.get("project").getPath))
@@ -233,8 +316,8 @@ proc runCommand*(v: Values) =
 
   enableBrowserSync = v.has("--sync")
   # Set the server port in the application configuration
-  App.configs["server"].put("port", newYamlInteger(port.int))
-  App.configs["tim"].put("sync", newYamlBoolean(enableBrowserSync))
+  App.configs["server"].putInt("port", port.int.int64)
+  App.configs["tim"].putBool("sync", enableBrowserSync)
 
   loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
@@ -244,7 +327,7 @@ proc runCommand*(v: Values) =
     # theme development: serve theme assets live from source through the
     # storage disks, without copying anything into the public `assets/` dir.
     # Works with symlinked theme dirs (`ln -s <source> themes/<name>`).
-    display("devMode: serving theme assets live from source, no public copy")
+    displayWarning("SG Dev-mode enabled: Serving theme assets live from source, no public copy")
   else:
     copyThemeAssetsToPublic(projectPath)
 
@@ -256,6 +339,8 @@ proc runCommand*(v: Values) =
 
 proc buildCommand*(v: Values) =
   ## Build the blog for production - generates static HTML website
+  # compat: see `runCommand` — mirror `project` as legacy `directory`
+  v[]["directory"] = v.get("project")
   initStartCommand(v, createDirs = false)
   let
     projectPath = absolutePath($(v.get("project").getPath))

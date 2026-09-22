@@ -3,7 +3,7 @@
 # (c) 2026 George Lemon | AGPL-3.0-or-later License
 #          Made by Humans from OpenPeeps
 
-import std/[json, strutils, sequtils, os]
+import std/[json, strutils, sequtils, os, httpcore]
 
 import pkg/supranim/[controller, core/paths, core/application]
 

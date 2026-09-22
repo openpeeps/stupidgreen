@@ -1,4 +1,4 @@
-import std/json
+import std/[json, httpcore]
 
 import supranim/controller
 import ../service/provider/tim
