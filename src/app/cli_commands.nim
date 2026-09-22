@@ -233,8 +233,8 @@ proc postCommand*(v: Values) =
   display("Created post: " & fpath)
   quit(0)
 
-proc scaffoldTheme*(projectPath, name, author: string): int =
-  ## Writes a blank theme skeleton into `<projectPath>/themes/<name>/`.
+proc scaffoldTheme*(destRoot, name, author: string): int =
+  ## Writes a blank theme skeleton into `destRoot` (i.e. `./<name>/`).
   ## Returns the number of files written. The caller must ensure the
   ## destination does not exist yet.
   let themeFiles = [
@@ -255,7 +255,7 @@ proc scaffoldTheme*(projectPath, name, author: string): int =
   ]
   result = 0
   for (rel, content) in themeFiles:
-    let dest = projectPath / "themes" / name / rel
+    let dest = destRoot / rel
     createDir(dest.parentDir)
     var text = content
     if rel == "theme.yaml":
@@ -264,10 +264,9 @@ proc scaffoldTheme*(projectPath, name, author: string): int =
     inc result
 
 proc themeCommand*(v: Values) =
-  ## Create a new blank StupidGreen theme in `themes/<name>` of the
-  ## current project. Never touches `stupidgreen.config` — activate the
-  ## theme by setting `theme: "<name>"` yourself (theme work usually
-  ## happens in dev mode).
+  ## Create a new blank StupidGreen theme in `./<name>`. Works anywhere —
+  ## no project required. Copy or symlink the result into a project's
+  ## `themes/` dir and set `theme: "<name>"` to use it.
   let name = $(v.get("name").getStr)
   if name.len == 0:
     displayError("Theme name cannot be empty.", quitProcess = true)
@@ -278,12 +277,7 @@ proc themeCommand*(v: Values) =
   if name == defaultThemeName:
     displayError("Cannot create a theme named \"" & name &
       "\" — it is the built-in fallback theme.", quitProcess = true)
-  let projectPath = getCurrentDir()
-  if not fileExists(projectPath / "stupidgreen.config.yml") and
-     not fileExists(projectPath / "stupidgreen.config.yaml") and
-     not fileExists(projectPath / "stupidgreen.config.json"):
-    displayError("No StupidGreen project found in the current directory. Run `stupidgreen new <directory>` first.", quitProcess = true)
-  let destRoot = projectPath / "themes" / name
+  let destRoot = getCurrentDir() / name
   if fileExists(destRoot) or dirExists(destRoot) or symlinkExists(destRoot):
     displayError("A theme already exists: " & destRoot, quitProcess = true)
   var author = ""
@@ -294,11 +288,11 @@ proc themeCommand*(v: Values) =
       author = gitName.strip().replace("\"", "")
   except OSError:
     discard
-  let written = scaffoldTheme(projectPath, name, author)
+  let written = scaffoldTheme(destRoot, name, author)
   display("Created a new StupidGreen theme in " & destRoot & " (" & $written & " files)")
   display("Next steps:")
+  display("  copy it to <project>/themes/" & name & " (or symlink it for live development)")
   display("  set `theme: \"" & name & "\"` in stupidgreen.config.yaml to activate it")
-  display("  stupidgreen run --sync   # preview with live reload")
   quit(0)
 
 proc runCommand*(v: Values) =
