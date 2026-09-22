@@ -45,7 +45,7 @@ App.cli do:
     ## Create a new blog post in the current project
 
   theme string(name):
-    ## Create a new blank SG theme in themes/<name>
+    ## Create a new blank SG theme in ./<name>
 
   run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
     ## Create a new SG instance for given project

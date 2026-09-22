@@ -27,20 +27,20 @@ proc assertContains(project, rel, needle: string) =
     fail("expected `" & needle & "` in " & rel)
 
 const themeFiles = [
-  "themes/mytheme/theme.yaml",
-  "themes/mytheme/layouts/base.timl",
-  "themes/mytheme/partials/header.timl",
-  "themes/mytheme/partials/post-cards.timl",
-  "themes/mytheme/partials/pagination.timl",
-  "themes/mytheme/views/index.timl",
-  "themes/mytheme/views/page.timl",
-  "themes/mytheme/views/post.timl",
-  "themes/mytheme/views/tag.timl",
-  "themes/mytheme/views/category.timl",
-  "themes/mytheme/views/search.timl",
-  "themes/mytheme/views/errors/4xx.timl",
-  "themes/mytheme/views/errors/5xx.timl",
-  "themes/mytheme/assets/style.css",
+  "mytheme/theme.yaml",
+  "mytheme/layouts/base.timl",
+  "mytheme/partials/header.timl",
+  "mytheme/partials/post-cards.timl",
+  "mytheme/partials/pagination.timl",
+  "mytheme/views/index.timl",
+  "mytheme/views/page.timl",
+  "mytheme/views/post.timl",
+  "mytheme/views/tag.timl",
+  "mytheme/views/category.timl",
+  "mytheme/views/search.timl",
+  "mytheme/views/errors/4xx.timl",
+  "mytheme/views/errors/5xx.timl",
+  "mytheme/assets/style.css",
 ]
 
 proc runTests() =
@@ -48,36 +48,31 @@ proc runTests() =
   if not fileExists(binPath):
     fail("StupidGreen binary not found. Run `clue build` first: " & binPath)
 
+  # scaffold a blank theme in an empty dir — no project required
   let dir = createTempDir("stupidgreen_theme_", "")
   defer: removeDir(dir)
 
-  # scaffold a new project
-  let newRes = execCmdEx(quoteShell(binPath) & " new " & quoteShell(dir))
-  if newRes.exitCode != 0:
-    fail("`stupidgreen new` failed: " & newRes.output)
-
-  # scaffold a blank theme (runs with the project as cwd)
   let themeRes = execCmdEx("cd " & quoteShell(dir) & " && " &
     quoteShell(binPath) & " theme mytheme")
   if themeRes.exitCode != 0:
     fail("`stupidgreen theme mytheme` failed: " & themeRes.output)
   for rel in themeFiles:
     assertFile(dir, rel)
-  assertContains(dir, "themes/mytheme/theme.yaml", "name: \"mytheme\"")
-  assertContains(dir, "themes/mytheme/theme.yaml", "author:")
-  assertContains(dir, "themes/mytheme/theme.yaml", "version:")
+  assertContains(dir, "mytheme/theme.yaml", "name: \"mytheme\"")
+  assertContains(dir, "mytheme/theme.yaml", "author:")
+  assertContains(dir, "mytheme/theme.yaml", "version:")
   # no external CSS, no fonts in the skeleton
-  assertContains(dir, "themes/mytheme/assets/style.css", ".post-content")
-  assertContains(dir, "themes/mytheme/assets/style.css", ".branch::before")
-  let styleCss = readFile(dir / "themes/mytheme/assets/style.css")
+  assertContains(dir, "mytheme/assets/style.css", ".post-content")
+  assertContains(dir, "mytheme/assets/style.css", ".branch::before")
+  let styleCss = readFile(dir / "mytheme/assets/style.css")
   if "bootstrap" in styleCss.toLowerAscii or "@font-face" in styleCss:
     fail("skeleton style.css must not reference external CSS or fonts")
   # timl skeleton keeps the functional hooks
-  assertContains(dir, "themes/mytheme/views/post.timl", "share-markdown-content")
-  assertContains(dir, "themes/mytheme/views/post.timl", "data-share-markdown")
-  assertContains(dir, "themes/mytheme/views/post.timl", "branch-")
-  assertContains(dir, "themes/mytheme/partials/header.timl", "spotlight-form")
-  assertContains(dir, "themes/mytheme/views/search.timl", "search-results")
+  assertContains(dir, "mytheme/views/post.timl", "share-markdown-content")
+  assertContains(dir, "mytheme/views/post.timl", "data-share-markdown")
+  assertContains(dir, "mytheme/views/post.timl", "branch-")
+  assertContains(dir, "mytheme/partials/header.timl", "spotlight-form")
+  assertContains(dir, "mytheme/views/search.timl", "search-results")
 
   # duplicate theme name fails
   let dupRes = execCmdEx("cd " & quoteShell(dir) & " && " &
@@ -100,24 +95,31 @@ proc runTests() =
   if reservedRes.exitCode == 0:
     fail("`stupidgreen theme default` should fail")
 
-  # outside a project it fails
+  # outside a project it still works (themes need no project)
   let outsideDir = createTempDir("stupidgreen_theme_outside_", "")
   defer: removeDir(outsideDir)
   let outsideRes = execCmdEx("cd " & quoteShell(outsideDir) & " && " &
     quoteShell(binPath) & " theme mytheme")
-  if outsideRes.exitCode == 0:
-    fail("`stupidgreen theme` outside a project should fail")
-  if "No StupidGreen project" notin outsideRes.output:
-    fail("outside-project error should mention the missing project")
+  if outsideRes.exitCode != 0:
+    fail("`stupidgreen theme` outside a project should succeed: " & outsideRes.output)
+  assertFile(outsideDir, "mytheme/theme.yaml")
+
+  # copy the new theme into a project, activate it and build with it
+  let projDir = createTempDir("stupidgreen_theme_proj_", "")
+  defer: removeDir(projDir)
+  let newRes = execCmdEx(quoteShell(binPath) & " new " & quoteShell(projDir))
+  if newRes.exitCode != 0:
+    fail("`stupidgreen new` failed: " & newRes.output)
+  copyDir(dir / "mytheme", projDir / "themes" / "mytheme")
 
   # activate the new theme and build the whole site with it
-  let themeConfig = dir / "stupidgreen.config.yaml"
+  let themeConfig = projDir / "stupidgreen.config.yaml"
   writeFile(themeConfig,
     readFile(themeConfig).replace("theme: \"default\"", "theme: \"mytheme\""))
-  let buildRes = execCmdEx(quoteShell(binPath) & " build " & quoteShell(dir))
+  let buildRes = execCmdEx(quoteShell(binPath) & " build " & quoteShell(projDir))
   if buildRes.exitCode != 0:
     fail("`stupidgreen build` (blank theme) failed: " & buildRes.output)
-  let outDir = dir / "_build"
+  let outDir = projDir / "_build"
   assertFile(outDir, "index.html")
   assertFile(outDir, "posts/hello-world/index.html")
   assertFile(outDir, "about/index.html")
