@@ -1,0 +1,5 @@
+main.error-page
+  p.error-code: "404"
+  h1: $this["post"]["meta"]["title"]
+  p: $this["post"]["meta"]["description"]
+  a href="/": "Back to Homepage"

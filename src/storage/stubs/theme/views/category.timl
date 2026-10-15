@@ -1,0 +1,7 @@
+@include "header"
+main.site-main
+  h1: "Category: " & $this["category"]
+  a href="/categories/" & $this["categorySlug"]: $this["categorySlug"]
+  if len($this["posts"]) > 0:
+    p: len($this["posts"]) & " post(s)"
+  @include "post-cards"

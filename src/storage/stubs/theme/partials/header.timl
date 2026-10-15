@@ -1,0 +1,13 @@
+header.site-header
+  a.site-brand href="/"
+    img src=$this["site"]["logo"] alt=$this["site"]["title"] height="32"
+  if $this["site"]["hasNotifications"] == true:
+    div.site-notice: $this["config"]["header"]["notification"]
+  if $this["config"]["header"]["search"]["enable"] == true:
+    form.spotlight-form action="/search" method="GET"
+      input.spotlight type="search" name="q" placeholder="Search the blog..." aria-label="Search the blog"
+      button type="submit": "Search"
+  if $this["config"]["navbar"] != nil and len($this["config"]["navbar"]) > 0:
+    nav.site-nav
+      for $navItem in items($this["config"]["navbar"]):
+        a href=$navItem["url"]: $navItem["title"]

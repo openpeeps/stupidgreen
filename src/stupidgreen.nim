@@ -38,8 +38,9 @@ threads: 1""")
   """)
 
 App.cli do:
-  new string(project), ?bool("--json"):
-    ## Create a new SG project
+  new string(project), ?bool("--json"), ?bool("--pages"):
+    ## Create a new SG project (`--pages` scaffolds a pages-only
+    ## site without the blogging system)
 
   post string(title):
     ## Create a new blog post in the current project

@@ -1,0 +1,188 @@
+/* A blank StupidGreen theme. No external CSS, no web fonts. */
+:root {
+  --bg: #ffffff;
+  --ink: #1a1a1a;
+  --muted: #666666;
+  --accent: #0a66c2;
+  --border: #e5e5e5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.site {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.site-brand img {
+  display: block;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  color: var(--ink);
+}
+
+.spotlight-form {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.spotlight-form input[type="search"] {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.spotlight-form button {
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Blog post body. Every view renders Markdown inside `.post-content`. */
+.post-content {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+}
+
+.post-content h1,
+.post-content h2,
+.post-content h3 {
+  line-height: 1.3;
+  margin-top: 2rem;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.post-content pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f6f6f6;
+}
+
+.post-card {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.post-card h2 {
+  margin: 0 0 0.25rem;
+}
+
+.post-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Table of contents rendered as a vertical branch tree. */
+.branch-nav {
+  margin: 2rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.branch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.branch-item {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.branch-item::before {
+  content: "";
+  position: absolute;
+  left: 0.4rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+
+.branch-link {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.branch-link:hover {
+  color: var(--accent);
+}
+
+.branch::before {
+  content: "";
+  display: block;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+
+.site-footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.error-page {
+  text-align: center;
+  padding: 4rem 1rem;
+}

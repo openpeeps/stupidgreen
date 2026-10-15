@@ -1,0 +1,50 @@
+script id="share-markdown-content" type="application/json"
+  toString({
+    markdown: $this["post"]["content_markdown"]
+  })
+
+@include "header"
+main.site-main
+  if len($this["post"]["meta"]["tags"]) > 0:
+    div.tag-list
+      for $tag in items($this["post"]["meta"]["tags"]):
+        a href="/tags/" & $tag["slug"]: $tag["name"]
+  h1: $this["post"]["meta"]["title"]
+  div.post-meta
+    if $this["post"]["meta"]["author"] != "":
+      span: "Published by "
+        $this["post"]["meta"]["author"]
+      span: "&bullet;"
+    span: $this["post"]["meta"]["date"]
+    if $this["config"]["content"]["showReadingTime"] == true and toFloat($this["post"]["reading_time"]) > 0:
+      span: "&bullet;"
+      span: $this["post"]["reading_time"] & " min read"
+  div.share-actions
+    button type="button" data-share-url="": "Copy URL"
+    button type="button" data-share-markdown="": "Copy as Markdown"
+  if $this["post"]["meta"]["cover"] != "":
+    div.post-cover
+      img src=$this["post"]["meta"]["cover"] alt=$this["post"]["meta"]["title"]
+  if len($this["post"]["toc"]) > 1:
+    nav.branch-nav
+      h2: "Table of Contents"
+      ul.branch-list
+        for $heading in items($this["post"]["toc"]):
+          li.branch-item > a.branch-link href="#" & $heading["id"]: $heading["title"]
+  article.post-content: $this["post"]["content"]
+  if $this["config"]["content"]["showLastUpdated"] == true and $this["post"]["last_updated"] != "":
+    div.last-updated
+      span: "Last updated"
+      time datetime=$this["post"]["last_updated"] title=$this["post"]["last_updated"]: $this["post"]["last_updated"]
+  if $this["config"]["content"]["bottom_navigation"] == true:
+    nav.post-nav
+      if $this["post"]["navigation"]["previous"] != nil:
+        const previousItem = $this["post"]["navigation"]["previous"]
+        a href=$previousItem["url"]
+          span: "&larr; Older"
+          span: $previousItem["title"]
+      if $this["post"]["navigation"]["next"] != nil:
+        const nextItem = $this["post"]["navigation"]["next"]
+        a href=$nextItem["url"]
+          span: "Newer &rarr;"
+          span: $nextItem["title"]

@@ -1,0 +1,21 @@
+if len($this["posts"]) > 0:
+  for $post in items($this["posts"]):
+    article.post-card
+      div
+        h2 > a href=$post["meta"]["url"]: $post["meta"]["title"]
+        div.post-meta
+          if $post["meta"]["author"] != "":
+            span: $post["meta"]["author"]
+            span: "&bullet;"
+          span: $post["meta"]["date"]
+          if $this["config"]["content"]["showReadingTime"] == true and toFloat($post["reading_time"]) > 0:
+            span: "&bullet;"
+            span: $post["reading_time"] & " min read"
+        if $post["meta"]["excerpt"] != "":
+          p: $post["meta"]["excerpt"]
+        if $this["config"]["content"]["readMoreText"] != "":
+          div
+            a href=$post["meta"]["url"]: $this["config"]["content"]["readMoreText"] & " &rarr;"
+else:
+  div.empty
+    p: "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"

@@ -123,6 +123,33 @@ initService Tim[Global]:
         data[key] = val
       result = render(timInstance, view, "base", data)
 
+    proc hasView*(view: string): bool =
+      ## Whether a Tim view template exists in the active or fallback theme
+      if timInstance == nil:
+        return false
+      result = timInstance.getView(view) != nil
+
+    proc resolvePageView*(layout, defaultView: string): string =
+      ## Resolves a front-matter `layout` value to a renderable Tim view.
+      ## Returns `defaultView` when the layout is empty, contains unsafe
+      ## characters or traversal segments, or has no matching template
+      ## in either the active or the fallback theme.
+      var parts: seq[string] = @[]
+      for raw in layout.strip().split({'/', '.'}):
+        let seg = raw.strip()
+        if seg.len == 0 or seg == "..":
+          return defaultView
+        for c in seg:
+          if c notin {'a'..'z', 'A'..'Z', '0'..'9', '-', '_'}:
+            return defaultView
+        parts.add(seg)
+      if parts.len == 0:
+        return defaultView
+      let name = parts.join("/")
+      if hasView(name):
+        return name
+      return defaultView
+
   client do:
 
     proc error*(message: string, exception: ref Exception) =

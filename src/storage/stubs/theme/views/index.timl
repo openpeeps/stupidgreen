@@ -1,0 +1,9 @@
+@include "header"
+main.site-main
+  if $this["intro"] != "":
+    article.homepage-intro.post-content: $this["intro"]
+  div.latest
+    h1: "Latest posts"
+    p: $this["config"]["metadata"]["description"]
+  @include "post-cards"
+  @include "pagination"

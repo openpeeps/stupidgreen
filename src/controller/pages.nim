@@ -39,6 +39,19 @@ proc configJson(): JsonNode =
   ## Converts the global StupidGreen configuration to a JsonNode
   fromJson(toJson(globalStupidGreenConfig))
 
+template pageNotFound(): JsonNode =
+  ## Shared local data for the 4xx fallback view (a template so `&*`
+  ## expands within the route handler, where `req` is in scope)
+  &*{
+    "post": {
+      "meta": {
+        "title": "Page Not Found",
+        "description": "The page you are looking for does not exist."
+      },
+    },
+    "config": configJson()
+  }
+
 proc baseUrl(): string =
   ## Returns the configured base URL without a trailing slash
   result = globalStupidGreenConfig.metadata.url
@@ -71,7 +84,19 @@ proc defaultLlmsText(): string =
 
 ctrl getHomepage:
   ## renders the homepage: the blog index (post cards) with an optional
-  ## intro from `pages/index.md` (or `posts/index.md`)
+  ## intro from `pages/index.md` (or `posts/index.md`). In pages mode
+  ## `/` renders `pages/index.md` through its layout view instead.
+  if globalStupidGreenConfig.mode == modePages:
+    if gMarkdownService.pages.hasKey("/") and
+        not gMarkdownService.pages["/"].meta.draft:
+      let home = gMarkdownService.pages["/"]
+      render(resolvePageView(home.meta.layout, "page"), local = &*{
+        "page": postJsonRendered(home),
+        "config": configJson()
+      })
+    else:
+      render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let (posts, page, totalPages) =
     paginatePosts(gMarkdownService.sorted, 1, globalStupidGreenConfig.pagination.per_page)
   let (prevUrl, nextUrl) = paginationUrls(page, totalPages)
@@ -86,7 +111,10 @@ ctrl getHomepage:
   })
 
 ctrl getPagePage:
-  ## renders a paginated index page
+  ## renders a paginated index page (blog mode only)
+  if globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let pageNum = req.params["page"].parseInt
   let (posts, page, totalPages) =
     paginatePosts(gMarkdownService.sorted, pageNum, globalStupidGreenConfig.pagination.per_page)
@@ -102,7 +130,10 @@ ctrl getPagePage:
   })
 
 ctrl getPostsSlug:
-  ## renders a single post
+  ## renders a single post (blog mode only)
+  if globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let url = "/posts/" & req.params["slug"]
   if gMarkdownService.posts.hasKey(url):
     render("post", local = &*{
@@ -121,7 +152,10 @@ ctrl getPostsSlug:
     }, httpCode = Http404)
 
 ctrl getTagsTag:
-  ## renders a tag archive page
+  ## renders a tag archive page (blog mode only)
+  if globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let tagSlug = req.params["tag"]
   let posts = gMarkdownService.byTag.getOrDefault(tagSlug, @[])
   let tagName = gMarkdownService.tagNames.getOrDefault(tagSlug, tagSlug)
@@ -133,7 +167,10 @@ ctrl getTagsTag:
   })
 
 ctrl getCategoriesCategory:
-  ## renders a category archive page
+  ## renders a category archive page (blog mode only)
+  if globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let catSlug = req.params["category"]
   let posts = gMarkdownService.byCategory.getOrDefault(catSlug, @[])
   let catName = gMarkdownService.categoryNames.getOrDefault(catSlug, catSlug)
@@ -173,7 +210,10 @@ ctrl getResultsJson:
   })
 
 ctrl getFeedXml:
-  ## returns the RSS/Atom feed as XML
+  ## returns the RSS/Atom feed as XML (blog mode only)
+  if globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
   let xml = feedXml(
     toSeq(gMarkdownService.posts.values),
     globalStupidGreenConfig,
@@ -198,11 +238,13 @@ ctrl getLlmsTxt:
   respond(Http200, (if content.len > 0: content else: defaultLlmsText()), "text/plain; charset=utf-8")
 
 ctrl getSlug:
-  ## renders standalone pages (from the `pages/` directory) or a 4xx fallback
+  ## renders standalone pages (from the `pages/` directory) or a 4xx fallback.
+  ## A page front-matter `layout` selects a custom theme view.
   let url = "/" & req.params["slug"]
   if gMarkdownService.pages.hasKey(url):
-    render("page", local = &*{
-      "page": postJsonRendered(gMarkdownService.pages[url]),
+    let page = gMarkdownService.pages[url]
+    render(resolvePageView(page.meta.layout, "page"), local = &*{
+      "page": postJsonRendered(page),
       "config": configJson()
     })
   else:

@@ -1,0 +1,7 @@
+@include "header"
+main.site-main
+  h1: "Tag: " & $this["tag"]
+  a href="/tags/" & $this["tagSlug"]: $this["tagSlug"]
+  if len($this["posts"]) > 0:
+    p: len($this["posts"]) & " post(s)"
+  @include "post-cards"

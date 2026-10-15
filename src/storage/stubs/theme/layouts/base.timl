@@ -1,0 +1,99 @@
+html lang="en"
+  head
+    meta charset="utf-8"
+    title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
+    meta name="viewport" content="width=device-width, initial-scale=1"
+    meta name="description" content=$this["config"]["metadata"]["description"]
+    link rel="stylesheet" href="/assets/style.css"
+    link rel="alternate" type="application/rss+xml" title="RSS Feed" href=$this["site"]["url"] & "/feed.xml"
+    link rel="alternate" type="text/plain" title="llms.txt" href=$this["site"]["url"] & "/llms.txt"
+  body
+    div.site
+      // The `@view` macro is a special macro that injects
+      // the content of the specific view into this layout.
+      @view
+      footer.site-footer
+        if $this["config"]["footer"]["text"] != nil:
+          p: $this["config"]["footer"]["text"]
+        if $this["config"]["footer"]["links"] != nil and len($this["config"]["footer"]["links"]) > 0:
+          p
+            for $link in items($this["config"]["footer"]["links"]):
+              a href=$link["url"]: $link["title"]
+        p: $this["currentYear"] & " &copy; " & $this["config"]["metadata"]["title"]
+        p: "Powered by "
+          a href="https://github.com/openpeeps/stupidgreen": "StupidGreen"
+
+    if $this["config"]["content"]["lazyloadIframes"] or
+       $this["config"]["content"]["lazyloadVideos"] or
+       $this["config"]["content"]["lazyloadImages"]:
+      @javascript
+      {
+        UI.onReload(() => {
+          const lazyMedia = document.querySelectorAll('iframe[data-src], video[data-src], audio[data-src], source[data-src], img[data-src]');
+          const loadMedia = (el) => {
+            setTimeout(() => {
+              el.src = el.dataset.src;
+              el.removeAttribute('data-src');
+            }, 150);
+          };
+          if ('IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries, obs) => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  loadMedia(entry.target);
+                  obs.unobserve(entry.target);
+                }
+              });
+            }, { rootMargin: '200px' });
+            lazyMedia.forEach(el => observer.observe(el));
+          } else {
+            lazyMedia.forEach(loadMedia);
+          }
+        });
+      }
+      @end
+
+    // Connects to the Watchout server to listen
+    // for file changes and reloads the page when a change is detected.
+    if $app["isDev"] == true:
+      @javascript
+      {
+        function connectWatchoutServer() {
+          const watchout = new WebSocket("ws://127.0.0.1:9000");
+          watchout.addEventListener('message', (e) => {
+            if(e.data == '1') location.reload()
+          });
+
+          watchout.addEventListener('close', () => {
+            setTimeout(() => {
+              console.log('Watchout WebSocket is closed. Try again...')
+              connectWatchoutServer()
+            }, 300)
+          })
+        }
+        connectWatchoutServer()
+      }
+      @end
+
+    // Connects to the StupidGreen Markdown sync WebSocket endpoint
+    // (`/ws`) to reload the page whenever content changes. This
+    // is enabled when running the server with `--sync`.
+    if $this["hasMarkdownSync"] == true:
+      @javascript
+      {
+        function connectMarkdownSync() {
+          const sync = new WebSocket(`http://${window.location.host}/ws`);
+          sync.addEventListener('message', (e) => {
+            if(e.data == '1') location.reload()
+          });
+
+          sync.addEventListener('close', () => {
+            setTimeout(() => {
+              console.log('Markdown sync WebSocket is closed. Retrying...')
+              connectMarkdownSync()
+            }, 300)
+          })
+        }
+        connectMarkdownSync()
+      }
+      @end

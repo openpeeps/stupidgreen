@@ -1,0 +1,9 @@
+@include "header"
+main.site-main
+  h1: "Search"
+  p: "Type a query to search the blog. Results are loaded from the local search index."
+  form.spotlight-form action="/search" method="GET"
+    input.spotlight type="search" name="q" placeholder="Search the blog..." aria-label="Search the blog"
+    button type="submit": "Search"
+  div#search-results
+    p: "No results yet."

@@ -1,0 +1,5 @@
+@include "header"
+main.site-main.landing
+  p.landing-marker: "LANDING LAYOUT"
+  h1.landing-title: $this["page"]["meta"]["title"]
+  article.post-content: $this["page"]["content"]

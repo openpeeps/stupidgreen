@@ -15,6 +15,14 @@ type
     themeDark = "dark"
       ## Dark theme mode
 
+  SiteMode* = enum
+    modeBlog = "blog"
+      ## Blog mode: `posts/` render as a dated index with
+      ## tag/category archives, feed and search
+    modePages = "pages"
+      ## Pages mode: the site is built only from `pages/`
+      ## (custom routes), without the blogging system
+
   PostLink* = object
     ## Represents a link to another post (e.g., prev/next navigation)
     title*: string
@@ -67,6 +75,10 @@ type
       ## The categories associated with the post
     draft*: bool
       ## Whether the post is a draft (excluded from builds)
+    layout*: string = ""
+      ## Optional custom theme view for this post/page
+      ## (`views/<layout>.timl`). Empty selects the default view
+      ## (`post` for posts, `page` for pages).
     fileMtime*: int64
       ## The file modification time, used for change detection
     filePath*: string
@@ -226,6 +238,9 @@ type
     ## Configuration options for StupidGreen.
     ## This object is automatically populated from `StupidGreen.config.yaml`
     ## or `StupidGreen.config.json` file in the current directory.
+    mode*: SiteMode = modeBlog
+      ## The site mode: `blog` (posts, tags, categories, feed) or
+      ## `pages` (custom routes from `pages/` only, no blogging system).
     theme*: string = "default"
       ## The active Tim theme, resolved from `<project>/themes/<name>`.
       ## Templates missing from the active theme fall back to the

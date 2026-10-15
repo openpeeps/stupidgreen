@@ -1,0 +1,4 @@
+@include "header"
+main.site-main
+  h1: $this["page"]["meta"]["title"]
+  article.post-content: $this["page"]["content"]

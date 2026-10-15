@@ -40,6 +40,7 @@ const
   themeStubTag = staticRead(storagePath / "stubs" / "theme" / "views" / "tag.timl")
   themeStubCategory = staticRead(storagePath / "stubs" / "theme" / "views" / "category.timl")
   themeStubSearch = staticRead(storagePath / "stubs" / "theme" / "views" / "search.timl")
+  themeStubLanding = staticRead(storagePath / "stubs" / "theme" / "views" / "landing.timl")
   themeStub4xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "4xx.timl")
   themeStub5xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "5xx.timl")
   themeStubStyle = staticRead(storagePath / "stubs" / "theme" / "assets" / "style.css")
@@ -189,18 +190,29 @@ proc copyThemeAssetsToPublic*(projectPath: string) =
       "\" (" & $copied & " file(s) into assets/)")
 
 proc newCommand*(v: Values) =
-  ## Create a new StupidGreen project in the specified directory
-  let dirPath = absolutePath($(v.get("project").getStr))
+  ## Create a new StupidGreen project in the specified directory.
+  ## With `--pages` the project is a pages-only site: no `posts/`
+  ## directory and `mode: "pages"` in the config, so the blogging
+  ## system (posts, tags, categories, feed) stays disabled.
+  let
+    dirPath = absolutePath($(v.get("project").getStr))
+    pagesMode = v.has("--pages")
+  var configText = tpl
+  if pagesMode:
+    configText = configText.replace("mode: \"blog\"", "mode: \"pages\"")
   createDir(dirPath)
   if v.has("--json"):
-    writeFile(dirPath / "stupidgreen.config.json", parseYaml(tpl).toJson())
+    writeFile(dirPath / "stupidgreen.config.json", parseYaml(configText).toJson())
   else:
-    writeFile(dirPath / "stupidgreen.config.yaml", tpl)
-  createDir(dirPath / "posts")
+    writeFile(dirPath / "stupidgreen.config.yaml", configText)
   createDir(dirPath / "pages")
   createDir(dirPath / "assets")
-  writeFile(dirPath / "posts" / "index.md", defaultHomePage)
-  writeFile(dirPath / "posts" / "hello-world.md", samplePost)
+  if pagesMode:
+    writeFile(dirPath / "pages" / "index.md", defaultHomePage)
+  else:
+    createDir(dirPath / "posts")
+    writeFile(dirPath / "posts" / "index.md", defaultHomePage)
+    writeFile(dirPath / "posts" / "hello-world.md", samplePost)
   writeFile(dirPath / "pages" / "about.md", samplePage)
   writeFile(dirPath / "pages" / "llms.md", sampleLlms)
   seedDefaultTheme(dirPath)
@@ -215,6 +227,15 @@ proc postCommand*(v: Values) =
   let title = $(v.get("title").getStr)
   let slug = title.slugify()
   let today = now().format("yyyy-MM-dd")
+  # in pages mode blog posts are disabled — check the project config
+  # before the `posts/` directory, which pages-only projects don't have
+  let configPath = getCurrentDir() / "stupidgreen.config"
+  if fileExists(configPath & ".yml") or fileExists(configPath & ".yaml") or
+      fileExists(configPath & ".json"):
+    loadStupidGreen(getCurrentDir())
+    if globalStupidGreenConfig.mode == modePages:
+      displayError("This project uses pages mode: blog posts are disabled.",
+        quitProcess = true)
   let postsDir = getCurrentDir() / "posts"
   if not dirExists(postsDir):
     displayError("No StupidGreen project found in the current directory. Run `stupidgreen new <directory>` first.", quitProcess = true)
@@ -249,6 +270,7 @@ proc scaffoldTheme*(destRoot, name, author: string): int =
     ("views/tag.timl", themeStubTag),
     ("views/category.timl", themeStubCategory),
     ("views/search.timl", themeStubSearch),
+    ("views/landing.timl", themeStubLanding),
     ("views/errors/4xx.timl", themeStub4xx),
     ("views/errors/5xx.timl", themeStub5xx),
     ("assets/style.css", themeStubStyle),
@@ -325,11 +347,14 @@ proc runCommand*(v: Values) =
   else:
     copyThemeAssetsToPublic(projectPath)
 
-  # init ActivityPub federation (no-op when disabled in the config)
-  var base = globalStupidGreenConfig.metadata.url
-  while base.len > 0 and base[^1] == '/':
-    base.setLen(base.len - 1)
-  activitypub.initActivityPub(projectPath, base, globalStupidGreenConfig.activitypub)
+  # init ActivityPub federation (no-op when disabled in the config).
+  # In pages mode federation is skipped entirely: it is part of the
+  # blogging system.
+  if globalStupidGreenConfig.mode != modePages:
+    var base = globalStupidGreenConfig.metadata.url
+    while base.len > 0 and base[^1] == '/':
+      base.setLen(base.len - 1)
+    activitypub.initActivityPub(projectPath, base, globalStupidGreenConfig.activitypub)
 
 proc buildCommand*(v: Values) =
   ## Build the blog for production - generates static HTML website
@@ -435,71 +460,109 @@ proc buildCommand*(v: Values) =
     while result.len > 0 and result[^1] == '/':
       result.setLen(result.len - 1)
 
-  let
-    perPage = globalStupidGreenConfig.pagination.per_page
-    sortedPosts = gMarkdownService.sorted
-    totalPages = max(1, (sortedPosts.len + perPage - 1) div perPage)
-    intro =
-      (if gMarkdownService.pages.hasKey("/"): renderHtml(gMarkdownService.pages["/"])
-      elif gMarkdownService.posts.hasKey("/"): renderHtml(gMarkdownService.posts["/"])
-      else: "")
+  let pagesMode = globalStupidGreenConfig.mode == modePages
 
-  proc indexPageUrl(n: int): string =
-    ## Returns the URL of a blog index page
-    if n == 1: "/" else: "/page/" & $n
+  proc pageView(post: Post, defaultView: string): string =
+    ## Resolves the Tim view for a post/page from its front-matter
+    ## `layout`, warning and falling back to `defaultView` when the
+    ## theme provides no matching template
+    if post.meta.layout.strip().len == 0:
+      return defaultView
+    result = tim.resolvePageView(post.meta.layout, defaultView)
+    if result == defaultView:
+      displayWarning("Unknown layout \"" & post.meta.layout &
+        "\" for " & post.meta.url & ", using \"" & defaultView & "\"")
 
-  # blog index + paginated index (homepage renders index.timl with the intro
-  # from `pages/index.md`/`posts/index.md` and the list of posts)
-  for pageNum in 1 .. totalPages:
-    var pagePosts: seq[Post] = @[]
-    let startIdx = (pageNum - 1) * perPage
-    for i in startIdx ..< min(startIdx + perPage, sortedPosts.len):
-      pagePosts.add(sortedPosts[i])
-    var local = newJObject()
-    local["config"] = configJson()
-    local["posts"] = postsJson(pagePosts)
-    local["page"] = %(pageNum)
-    local["totalPages"] = %(totalPages)
-    local["prevUrl"] = %((if pageNum > 1: indexPageUrl(pageNum - 1) else: ""))
-    local["nextUrl"] = %((if pageNum < totalPages: "/page/" & $(pageNum + 1) else: ""))
-    local["intro"] = %(intro)
-    writeRouteHtml("index", indexPageUrl(pageNum), local)
+  if pagesMode:
+    # pages-only site: `/` renders `pages/index.md` through its layout
+    # view, every other page through its own layout view. The blogging
+    # system (index pagination, posts, tags, categories, feed) is
+    # disabled entirely.
+    if not gMarkdownService.pages.hasKey("/"):
+      displayError("Pages mode requires a homepage: create `pages/index.md`.",
+        quitProcess = true)
+    let home = gMarkdownService.pages["/"]
+    if home.meta.draft:
+      displayError("Pages mode requires a homepage: `pages/index.md` is a draft.",
+        quitProcess = true)
+    var homeLocal = newJObject()
+    homeLocal["config"] = configJson()
+    homeLocal["page"] = postJsonRendered(home)
+    writeRouteHtml(pageView(home, "page"), "/", homeLocal)
 
-  # individual posts
-  for url, post in gMarkdownService.posts:
-    if url == "/" or post.meta.draft:
-      continue
-    var local = newJObject()
-    local["config"] = configJson()
-    local["post"] = postJsonRendered(post)
-    writeRouteHtml("post", url, local)
+    for url, page in gMarkdownService.pages:
+      if page.meta.draft or url == "/":
+        continue
+      var local = newJObject()
+      local["config"] = configJson()
+      local["page"] = postJsonRendered(page)
+      writeRouteHtml(pageView(page, "page"), url, local)
+  else:
+    let
+      perPage = globalStupidGreenConfig.pagination.per_page
+      sortedPosts = gMarkdownService.sorted
+      totalPages = max(1, (sortedPosts.len + perPage - 1) div perPage)
+      intro =
+        (if gMarkdownService.pages.hasKey("/"): renderHtml(gMarkdownService.pages["/"])
+        elif gMarkdownService.posts.hasKey("/"): renderHtml(gMarkdownService.posts["/"])
+        else: "")
 
-  # standalone pages (the homepage at `/` is the blog index, rendered above)
-  for url, page in gMarkdownService.pages:
-    if page.meta.draft or url == "/":
-      continue
-    var local = newJObject()
-    local["config"] = configJson()
-    local["page"] = postJsonRendered(page)
-    writeRouteHtml("page", url, local)
+    proc indexPageUrl(n: int): string =
+      ## Returns the URL of a blog index page
+      if n == 1: "/" else: "/page/" & $n
 
-  # tag archives
-  for tagSlug, tagPosts in gMarkdownService.byTag:
-    var local = newJObject()
-    local["config"] = configJson()
-    local["posts"] = postsJson(tagPosts)
-    local["tag"] = %(gMarkdownService.tagNames.getOrDefault(tagSlug, tagSlug))
-    local["tagSlug"] = %(tagSlug)
-    writeRouteHtml("tag", "/tags/" & tagSlug, local)
+    # blog index + paginated index (homepage renders index.timl with the intro
+    # from `pages/index.md`/`posts/index.md` and the list of posts)
+    for pageNum in 1 .. totalPages:
+      var pagePosts: seq[Post] = @[]
+      let startIdx = (pageNum - 1) * perPage
+      for i in startIdx ..< min(startIdx + perPage, sortedPosts.len):
+        pagePosts.add(sortedPosts[i])
+      var local = newJObject()
+      local["config"] = configJson()
+      local["posts"] = postsJson(pagePosts)
+      local["page"] = %(pageNum)
+      local["totalPages"] = %(totalPages)
+      local["prevUrl"] = %((if pageNum > 1: indexPageUrl(pageNum - 1) else: ""))
+      local["nextUrl"] = %((if pageNum < totalPages: "/page/" & $(pageNum + 1) else: ""))
+      local["intro"] = %(intro)
+      writeRouteHtml("index", indexPageUrl(pageNum), local)
 
-  # category archives
-  for catSlug, catPosts in gMarkdownService.byCategory:
-    var local = newJObject()
-    local["config"] = configJson()
-    local["posts"] = postsJson(catPosts)
-    local["category"] = %(gMarkdownService.categoryNames.getOrDefault(catSlug, catSlug))
-    local["categorySlug"] = %(catSlug)
-    writeRouteHtml("category", "/categories/" & catSlug, local)
+    # individual posts
+    for url, post in gMarkdownService.posts:
+      if url == "/" or post.meta.draft:
+        continue
+      var local = newJObject()
+      local["config"] = configJson()
+      local["post"] = postJsonRendered(post)
+      writeRouteHtml(pageView(post, "post"), url, local)
+
+    # standalone pages (the homepage at `/` is the blog index, rendered above)
+    for url, page in gMarkdownService.pages:
+      if page.meta.draft or url == "/":
+        continue
+      var local = newJObject()
+      local["config"] = configJson()
+      local["page"] = postJsonRendered(page)
+      writeRouteHtml(pageView(page, "page"), url, local)
+
+    # tag archives
+    for tagSlug, tagPosts in gMarkdownService.byTag:
+      var local = newJObject()
+      local["config"] = configJson()
+      local["posts"] = postsJson(tagPosts)
+      local["tag"] = %(gMarkdownService.tagNames.getOrDefault(tagSlug, tagSlug))
+      local["tagSlug"] = %(tagSlug)
+      writeRouteHtml("tag", "/tags/" & tagSlug, local)
+
+    # category archives
+    for catSlug, catPosts in gMarkdownService.byCategory:
+      var local = newJObject()
+      local["config"] = configJson()
+      local["posts"] = postsJson(catPosts)
+      local["category"] = %(gMarkdownService.categoryNames.getOrDefault(catSlug, catSlug))
+      local["categorySlug"] = %(catSlug)
+      writeRouteHtml("category", "/categories/" & catSlug, local)
 
   # search results
   let searchEntries = spotlight().getEntries()
@@ -520,12 +583,16 @@ proc buildCommand*(v: Values) =
   results["results"] = resultsArray
   writeFile(outputPath / "results.json", $results)
 
-  # feed + sitemap
+  # feed + sitemap (no feed in pages mode: the blogging system is disabled)
   let allPosts = toSeq(gMarkdownService.posts.values)
   let allPages = toSeq(gMarkdownService.pages.values)
-  if globalStupidGreenConfig.feed.enable:
-    writeFile(outputPath / "feed.xml", feedXml(allPosts, globalStupidGreenConfig, baseUrl()))
-  writeFile(outputPath / "sitemap.xml", sitemapXml(allPosts, allPages, globalStupidGreenConfig, baseUrl()))
+  if pagesMode:
+    writeFile(outputPath / "sitemap.xml",
+      sitemapXml(newSeq[Post](), allPages, globalStupidGreenConfig, baseUrl()))
+  else:
+    if globalStupidGreenConfig.feed.enable:
+      writeFile(outputPath / "feed.xml", feedXml(allPosts, globalStupidGreenConfig, baseUrl()))
+    writeFile(outputPath / "sitemap.xml", sitemapXml(allPosts, allPages, globalStupidGreenConfig, baseUrl()))
 
   # llms.txt (from the project's pages/llms.md)
   let llms = llmsTxtContent(installPath / "pages")

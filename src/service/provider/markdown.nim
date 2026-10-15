@@ -285,6 +285,12 @@ initService Markdown[Global]:
       if meta.kind == JObject and meta.hasKey("series"):
         series = meta["series"].getStr()
 
+      # layout (front matter `layout` selects a custom theme view,
+      # i.e. `views/<layout>.timl`; empty selects the default view)
+      var layout = ""
+      if meta.kind == JObject and meta.hasKey("layout"):
+        layout = meta["layout"].getStr().strip()
+
       # table of contents (`getSelectorItems` yields document order with
       # explicit fields: `anchor` is the slugified id, `title` the heading
       # text, `level` the heading level 1-6). Nested items get a tree
@@ -322,6 +328,7 @@ initService Markdown[Global]:
           tags: tags,
           categories: categories,
           draft: draft,
+          layout: layout,
           fileMtime: fileTime.toUnix,
           filePath: path
         ),
@@ -376,12 +383,12 @@ initService Markdown[Global]:
       gMarkdownService.sorted = sorted
 
     proc rebuildSearch() =
-      ## Rebuilds the Spotlight search index from all non-draft posts
+      ## Rebuilds the Spotlight search index from all non-draft posts.
+      ## In pages mode the blogging system is disabled, so standalone
+      ## pages (including the homepage) are indexed instead.
       let searchInstance = spotlight()
       searchInstance.clear()
-      for url, post in gMarkdownService.posts:
-        if post.meta.draft or url == "/":
-          continue
+      proc indexEntry(url: string, post: Post) =
         var headings: seq[string]
         for heading in post.toc:
           headings.add(heading.title)
@@ -394,6 +401,15 @@ initService Markdown[Global]:
             else: none(string),
           headings = some(headings)
         )
+      for url, post in gMarkdownService.posts:
+        if post.meta.draft or url == "/":
+          continue
+        indexEntry(url, post)
+      if globalStupidGreenConfig.mode == modePages:
+        for url, page in gMarkdownService.pages:
+          if page.meta.draft:
+            continue
+          indexEntry(url, page)
 
     proc loadFromStore() =
       ## Loads all persisted content from the Boogie document store
@@ -492,9 +508,17 @@ initService Markdown[Global]:
 
     proc scanMarkdownFiles*(contentPath, pagesPath: string) =
       ## Scans the posts and pages directories, parsing changed/new markdown
-      ## files and rebuilding the in-memory indexes
-      scanDir(contentPath, false)
-      scanDir(pagesPath, true)
+      ## files and rebuilding the in-memory indexes. In pages mode the
+      ## blogging system is disabled, so `posts/` is never scanned
+      ## (and may not exist).
+      if globalStupidGreenConfig.mode == modePages:
+        if dirExists(pagesPath):
+          scanDir(pagesPath, true)
+      else:
+        if dirExists(contentPath):
+          scanDir(contentPath, false)
+        if dirExists(pagesPath):
+          scanDir(pagesPath, true)
       rebuildIndex()
       rebuildSearch()
       store.checkpoint()
@@ -536,6 +560,8 @@ initService Markdown[Global]:
     proc onChange(file: watchout.File) =
       ## Callback when a markdown file is changed
       let path = file.getPath()
+      if globalStupidGreenConfig.mode == modePages and not path.startsWith(pagesPath):
+        return # pages-only site: the blogging system is disabled
       if fileExists(path) and not (path.extractFilename == "llms.md" and path.startsWith(pagesPath)):
         let isPage = path.startsWith(pagesPath)
         let basePath = (if isPage: pagesPath else: contentPath)
@@ -597,6 +623,8 @@ initService Markdown[Global]:
     proc onDelete(file: watchout.File) =
       ## Callback when a markdown file is deleted
       let path = file.getPath()
+      if globalStupidGreenConfig.mode == modePages and not path.startsWith(pagesPath):
+        return # pages-only site: the blogging system is disabled
       let isPage = path.startsWith(pagesPath)
       let basePath = (if isPage: pagesPath else: contentPath)
       # resolve the URL by file path (title-derived slugs don't match the file
@@ -743,7 +771,12 @@ initService Markdown[Global]:
       contentPath = app.applicationPaths.getInstallationPath / "posts"
       pagesPath = app.applicationPaths.getInstallationPath / "pages"
       createDir(storePath)
-      createDir(contentPath)
+      if globalStupidGreenConfig.mode == modePages:
+        # pages-only site: never create `posts/`, the blogging
+        # system is disabled
+        discard
+      else:
+        createDir(contentPath)
       createDir(pagesPath)
       # Note: never create content files here. The default `posts/index.md`
       # is written only once by `stupidgreen new`; a deleted index.md stays
@@ -757,7 +790,12 @@ initService Markdown[Global]:
       pagesPath = app.applicationPaths.getInstallationPath / "pages"
       storePath = app.applicationPaths.getInstallationPath / "storage" / "stupidgreen"
 
-      createDir(contentPath)
+      if globalStupidGreenConfig.mode == modePages:
+        # pages-only site: never create `posts/`, the blogging
+        # system is disabled
+        discard
+      else:
+        createDir(contentPath)
       createDir(pagesPath)
       createDir(storePath)
 
@@ -770,7 +808,10 @@ initService Markdown[Global]:
       openStore()
 
       # Create a new Watchout instance to monitor markdown files
-      watcher = newWatchout(@[contentPath, pagesPath], some("*.md"))
+      let watchDirs =
+        if globalStupidGreenConfig.mode == modePages: @[pagesPath]
+        else: @[contentPath, pagesPath]
+      watcher = newWatchout(watchDirs, some("*.md"))
       watcher.onChange = onChange
       watcher.onFound = onFound
       watcher.onDelete = onDelete
