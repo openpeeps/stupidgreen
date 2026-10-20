@@ -1,0 +1,29 @@
+# Application runtime configuration (TOML).
+# URL used when building absolute links and redirects.
+url = "127.0.0.1:8000"
+# Serve generated links as https.
+ssl = false
+
+[server]
+# TCP bind address. When `unix = true` this is the socket path instead,
+# e.g. "/tmp/stupidgreen.sock" (port is ignored then).
+address = "127.0.0.1"
+port = 8000
+# Worker threads. 1 = single worker, 0 = one per CPU core.
+threads = 1
+# Serve HTTP over a Unix domain socket instead of TCP. Always
+# single-threaded: powpow worker pools cannot listen on Unix sockets.
+unix = false
+
+# Request limits (bytes unless noted). 0 = unlimited, except the two
+# millisecond timeouts which keep powpow defaults when omitted.
+max_body_size = 52428800          # 50 MB total request body
+max_stream_body_size = 67108864  # hard cap even when max_body_size = 0
+max_file_size = 10485760          # 10 MB per uploaded file
+max_field_size = 65536            # 64 KB per text field
+max_connections = 4096            # cap concurrent connections
+max_pipeline_depth = 4            # cap pipelined requests
+read_timeout_ms = 5000            # slowloris / partial-request close
+keep_alive_timeout_ms = 5000      # idle keep-alive close
+ws_idle_timeout_ms = 0            # post-upgrade websocket idle close, 0 = off
+timeout_sweep_ms = 200            # lazy timeout-sweep interval

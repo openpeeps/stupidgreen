@@ -331,8 +331,11 @@ proc runCommand*(v: Values) =
       else: 8000.Port
 
   enableBrowserSync = v.has("--sync")
-  # Set the server port in the application configuration
-  App.configs["server"].putInt("port", port.int.int64)
+  # Set the server port in the application configuration (`putInt` only
+  # addresses top-level keys, so the nested `server` table is updated
+  # directly). The framework reads `app.server.port` when starting.
+  App.configs["app"].tomlDoc.tableVal["server"].tableVal["port"] =
+    newTomlInteger(port.int.int64)
   App.configs["tim"].putBool("sync", enableBrowserSync)
 
   loadStupidGreen(projectPath)

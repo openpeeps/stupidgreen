@@ -34,7 +34,7 @@ when not defined release:
   --define:timHotCode
 else:
   --define:supranimEmbedConfig
-    # Embed Supranim config files (config/*.yml) into the binary at
+    # Embed Supranim config files (config/*.toml) into the binary at
     # compile time instead of creating a config/ directory at runtime
 
   # Note: `src/storage/assets/` is intentionally NOT bundled. Theme assets

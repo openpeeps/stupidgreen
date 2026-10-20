@@ -13,102 +13,99 @@ import pkg/powpow as pw
 import ./app/[structs, cli_commands]
 import ./service/provider/activitypub
 
-#
-# Init core modules using `init` macro
-#
-App.init(skipLocalConfig = true) do:
-  # StupidGreen does not use the default Supranim configuration
-  # loading mechanism, so we define the required `server` config here.
-  #
-  # This is necessary for the application to run, and will be
-  # overridden by the user's local configuration when they run the app.
-  App.configs = newOrderedTable[string, Configuration]()
-  App.configs["server"] = parseConfiguration(".yml", """
-type: "AF_INET"
-port: 8000
-address: "127.0.0.1"
-threads: 1""")
+initApp(skipLocalConfig = true):
+  config do:
+    # StupidGreen does not use the default Supranim configuration
+    # loading mechanism, so we define the required `app` config here.
+    #
+    # This is necessary for the application to run, and will be
+    # overridden by the user's local configuration when they run the app.
+    App.configs = newOrderedTable[string, Configuration]()
+    App.configs["app"] = parseConfiguration(".toml", """
+url = "127.0.0.1:8000"
+ssl = false
 
-  # setup tim configuration with defaults
-  App.configs["tim"] = parseConfiguration(".yml", """
-  source: ./themes
-  output: ./storage/templates
-  indent: 2
-  sync: false
-  """)
+[server]
+address = "127.0.0.1"
+port = 8000
+threads = 1
+unix = false
+""")
 
-App.cli do:
-  new string(project), ?bool("--json"), ?bool("--pages"):
-    ## Create a new SG project (`--pages` scaffolds a pages-only
-    ## site without the blogging system)
+    # setup tim configuration with defaults
+    App.configs["tim"] = parseConfiguration(".toml", """
+source = "./themes"
+output = "./storage/templates"
+indent = 2
+sync = false
+""")
 
-  post string(title):
-    ## Create a new blog post in the current project
+  cli do:
+    new string(project), ?bool("--json"), ?bool("--pages"):
+      ## Create a new SG project (`--pages` scaffolds a pages-only
+      ## site without the blogging system)
 
-  theme string(name):
-    ## Create a new blank SG theme in ./<name>
+    post string(title):
+      ## Create a new blog post in the current project
 
-  run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
-    ## Create a new SG instance for given project
+    theme string(name):
+      ## Create a new blank SG theme in ./<name>
 
-  build path(project):
-    ## Generate static HTML website from SG project
+    run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
+      ## Create a new SG instance for given project
 
-#
-# Initialize available Service Providers.
-#
-# Configuration files are defined as YAML in the
-# `config/` directory.
-#
-App.services do:
-  # init Logger Service
-  logger.init()
+    build path(project):
+      ## Generate static HTML website from SG project
 
-  # init Tim Engine
-  tim.init(
-    App.config("tim.source").getStr,
-    App.config("tim.output").getStr,
-    if stupidgreenProjectPath.len > 0: stupidgreenProjectPath else: supranim.basePath,
-    global = %*{
-      "isDev": (when defined release: false else: true),
-      "enableMarkdownSync": App.config("tim.sync").getBool,
-      "browserSync": {
-        "appPort": App.config("server.port").getInt,
-      }
-    },
-    activeTheme = activeThemeName(),
-    fallbackTheme = defaultThemeName
-  )
+  services do:
+    # init Logger Service
+    logger.init()
 
-  # init Search Service
-  search.init()
+    # init Tim Engine
+    tim.init(
+      App.config("tim.source").getStr,
+      App.config("tim.output").getStr,
+      if stupidgreenProjectPath.len > 0: stupidgreenProjectPath else: supranim.basePath,
+      global = %*{
+        "isDev": (when defined release: false else: true),
+        "enableMarkdownSync": App.config("tim.sync").getBool,
+        "browserSync": {
+          "appPort": App.config("app.server.port").getInt,
+        }
+      },
+      activeTheme = activeThemeName(),
+      fallbackTheme = defaultThemeName
+    )
 
-  # init Markdown Service
-  markdown.init(App)
+    # init Search Service
+    search.init()
 
-  when defined release:
-    # Note: theme assets are NOT embedded as servable files. The embedded
-    # default theme bundle only seeds `<project>/themes/default/`; the
-    # built site and the dev server always read assets from the project.
-    # (Tabler SVG icons for `icon()` are still embedded below.)
+    # init Markdown Service
+    markdown.init(App)
 
-    # embed Tim Engine default theme directly into the binary for production.
-    # Project themes resolve from `<project>/themes/` at runtime; the embedded
-    # bundle seeds `themes/default/` into projects missing it.
-    assets.embedDirectory("themes/default", "themes/default")
+    when defined release:
+      # Note: theme assets are NOT embedded as servable files. The embedded
+      # default theme bundle only seeds `<project>/themes/default/`; the
+      # built site and the dev server always read assets from the project.
+      # (Tabler SVG icons for `icon()` are still embedded below.)
 
-    # embed Tabler SVG icons directly into the binary for production
-    assets.embedDirectory("storage/icons", "storage/icons")
+      # embed Tim Engine default theme directly into the binary for production.
+      # Project themes resolve from `<project>/themes/` at runtime; the embedded
+      # bundle seeds `themes/default/` into projects missing it.
+      assets.embedDirectory("themes/default", "themes/default")
 
-when defined release:
-  # Preload embedded resources into memory (default theme bundle used for
-  # seeding `themes/` into projects; icons used by `icon()` in templates)
-  assets.preloadBundle("storage/icons")
+      # embed Tabler SVG icons directly into the binary for production
+      assets.embedDirectory("storage/icons", "storage/icons")
 
-  assets.preloadBundle("themes/default")
+    when defined release:
+      # Preload embedded resources into memory (default theme bundle used for
+      # seeding `themes/` into projects; icons used by `icon()` in templates)
+      assets.preloadBundle("storage/icons")
+
+      assets.preloadBundle("themes/default")
 
 App.withAssetsHandler:
-  proc (req: var Request, res: var Response, hasFoundResource: var bool) =
+  proc (req: var Request, res: var Response, foundRes: var bool) =
     # Serve `/assets/*` from the runtime storage disks: project assets
     # first, then the active theme, then the default (fallback) theme.
     # Works identically in dev and release; theme assets are never copied
@@ -117,7 +114,7 @@ App.withAssetsHandler:
       let full = resolvePublicAsset(req.path["/assets/".len .. ^1])
       if full.len > 0:
         req.sendAssetFile(full, res.getHeaders())
-        hasFoundResource = true
+        foundRes = true
 
 #
 # Starts the application. This will start the HTTP
