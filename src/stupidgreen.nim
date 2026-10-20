@@ -4,7 +4,7 @@
 # It initializes the application, loads configurations,
 # and sets up the necessary services and middlewares.
 #
-import std/tables
+import std/[os, tables]
 
 import pkg/supranim
 import pkg/supranim/core/paths
@@ -16,29 +16,19 @@ import ./service/provider/activitypub
 initApp(skipLocalConfig = true):
   config do:
     # StupidGreen does not use the default Supranim configuration
-    # loading mechanism, so we define the required `app` config here.
-    #
-    # This is necessary for the application to run, and will be
-    # overridden by the user's local configuration when they run the app.
+    # loading mechanism. Defaults live in the merged
+    # `src/stupidgreen.config.toml`, baked into the binary at compile
+    # time; at startup it is split into the per-area config objects
+    # (`[app]` -> `App.configs["app"]`, `[tim]` -> `App.configs["tim"]`).
+    # Everything stays in memory: nothing is read from files at runtime,
+    # and `run`/`build` never create a config directory.
+    const sgDefaultConfig = staticRead(basePath / "stupidgreen.config.toml")
+    let mergedConfig = parseConfiguration(".toml", sgDefaultConfig)
     App.configs = newOrderedTable[string, Configuration]()
-    App.configs["app"] = parseConfiguration(".toml", """
-url = "127.0.0.1:8000"
-ssl = false
-
-[server]
-address = "127.0.0.1"
-port = 8000
-threads = 1
-unix = false
-""")
-
-    # setup tim configuration with defaults
-    App.configs["tim"] = parseConfiguration(".toml", """
-source = "./themes"
-output = "./storage/templates"
-indent = 2
-sync = false
-""")
+    for area in mergedConfig.tomlDoc.tableVal.keys:
+      let sub = mergedConfig.tomlDoc.tableVal[area]
+      if sub.kind == tvkTable:
+        App.configs[area] = Configuration(format: cfgToml, tomlDoc: sub)
 
   cli do:
     new string(project), ?bool("--json"), ?bool("--pages"):
