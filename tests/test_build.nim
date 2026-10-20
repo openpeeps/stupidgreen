@@ -50,6 +50,7 @@ proc runTests() =
   assertFile(dir, "themes/default/assets/bootstrap.min.css")
   assertFile(dir, "themes/default/assets/app.js")
   assertContains(dir, "stupidgreen.config.yaml", "theme:")
+  assertContains(dir, "stupidgreen.config.yaml", "server:")
   assertContains(dir, "themes/default/theme.yaml", "name:")
 
   # add a page in a subdirectory

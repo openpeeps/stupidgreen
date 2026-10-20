@@ -234,10 +234,24 @@ type
     icon*: string = ""
       ## Optional avatar URL for the blog actor
 
+  ServerSettings* = object
+    ## Supranim server settings for `stupidgreen run`. Projects created
+    ## before this section existed fall back to these defaults.
+    address*: string = "127.0.0.1"
+      ## TCP bind address (`unix = true` turns it into a socket path)
+    port*: int = 8000
+      ## TCP port to listen on (overridden by `run --port`)
+    threads*: int = 1
+      ## Worker threads. 1 = single worker, 0 = one per CPU core
+    unix*: bool = false
+      ## Serve over a Unix domain socket instead of TCP (single-threaded)
+
   StupidGreenConfig* = object
     ## Configuration options for StupidGreen.
     ## This object is automatically populated from `StupidGreen.config.yaml`
     ## or `StupidGreen.config.json` file in the current directory.
+    server*: ServerSettings
+      ## Supranim server settings used by `stupidgreen run`
     mode*: SiteMode = modeBlog
       ## The site mode: `blog` (posts, tags, categories, feed) or
       ## `pages` (custom routes from `pages/` only, no blogging system).

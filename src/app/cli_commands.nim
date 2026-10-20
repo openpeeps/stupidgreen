@@ -58,6 +58,14 @@ proc loadStupidGreen(projectPath: string) =
     display("No StupidGreen Config found in the current directory (.yml/.yaml/.json)")
     QuitFailure.quit
   globalStupidGreenConfig.ensureLeadingSlash()
+  # `parseYAML` leaves absent keys at their zero value (Nim field
+  # defaults do not survive parsing), so projects predating the
+  # `server` section are normalized to the built-in defaults here.
+  # (`threads: 0` passes through: powpow reads it as one worker per core.)
+  if globalStupidGreenConfig.server.port == 0:
+    globalStupidGreenConfig.server.port = 8000
+  if globalStupidGreenConfig.server.address.len == 0:
+    globalStupidGreenConfig.server.address = "127.0.0.1"
 
 const defaultThemeName* = "default"
   ## Name of the built-in fallback theme shipped with StupidGreen
@@ -324,21 +332,32 @@ proc runCommand*(v: Values) =
   # Mirror it so both supranim generations work; drop when 0.1.11 lands.
   v[]["directory"] = v.get("project")
   initStartCommand(v, createDirs = false)
+  let projectPath = absolutePath($(v.get("project").getPath))
+  loadStupidGreen(projectPath)
   let
-    projectPath = absolutePath($(v.get("project").getPath))
+    sgServer = globalStupidGreenConfig.server
     port =
       if v.has("--port"): v.get("--port").getPort
-      else: 8000.Port
+      else:
+        if sgServer.port notin 1 .. 65535:
+          displayError("Invalid `server.port` in stupidgreen.config.yaml: \"" &
+            $sgServer.port & "\" (expected 1..65535)", quitProcess = true)
+          quit(1)
+        Port(sgServer.port)
 
   enableBrowserSync = v.has("--sync")
-  # Set the server port in the application configuration (`putInt` only
+  # Hand the project server settings to the framework (`putInt` only
   # addresses top-level keys, so the nested `server` table is updated
-  # directly). The framework reads `app.server.port` when starting.
-  App.configs["app"].tomlDoc.tableVal["server"].tableVal["port"] =
-    newTomlInteger(port.int.int64)
+  # directly). `--port` wins over the file; the rest always comes from
+  # the project config, falling back to built-in defaults for projects
+  # predating the `server` section.
+  let srvTable = App.configs["app"].tomlDoc.tableVal["server"]
+  srvTable.tableVal["address"] = newTomlString(sgServer.address)
+  srvTable.tableVal["port"] = newTomlInteger(port.int.int64)
+  srvTable.tableVal["threads"] = newTomlInteger(sgServer.threads.int64)
+  srvTable.tableVal["unix"] = newTomlBoolean(sgServer.unix)
   App.configs["tim"].putBool("sync", enableBrowserSync)
 
-  loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
   seedDefaultTheme(projectPath)
   initThemeDisks(projectPath)
