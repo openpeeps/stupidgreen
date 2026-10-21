@@ -92,29 +92,29 @@ initApp(skipLocalConfig = true):
       preloadBundle("storage/icons")
       preloadBundle("themes/default")
 
-#
-# Starts the application. This will start the HTTP
-# server and listen for incoming requests.
-#
-# The application will be available at the specified port.
-#
-App.run do:
-  # StupidGreen WebSocket endpoint for live-reloading.
-  if enableBrowserSync:
-    App.server.registerCallback("/ws",
-      proc (req: pw.HttpRequest, res: pw.HttpResponse) {.gcsafe.} =
-        discard websocketUpgrade(res, req,
-          onOpen = onOpenCallback,
-          onClose = onClose,
-          onError = onError)
-    )
-
-  # ActivityPub federation endpoints (WebFinger, actor, inbox, outbox, ...).
-  # Exact-path low-level callbacks, mirroring the `/ws` pattern above.
-  if activitypub.apEnabled():
-    for apPath in activitypub.apPaths():
-      App.server.registerCallback(apPath,
+  #
+  # Starts the application. This will start the HTTP
+  # server and listen for incoming requests.
+  #
+  # The application will be available at the specified port.
+  #
+  run do(app: Application):
+    # StupidGreen WebSocket endpoint for live-reloading.
+    if enableBrowserSync:
+      App.server.registerCallback("/ws",
         proc (req: pw.HttpRequest, res: pw.HttpResponse) {.gcsafe.} =
-          {.gcsafe.}:
-            activitypub.apRoute(req, res)
+          discard websocketUpgrade(res, req,
+            onOpen = onOpenCallback,
+            onClose = onClose,
+            onError = onError)
       )
+
+    # ActivityPub federation endpoints (WebFinger, actor, inbox, outbox, ...).
+    # Exact-path low-level callbacks, mirroring the `/ws` pattern above.
+    if activitypub.apEnabled():
+      for apPath in activitypub.apPaths():
+        App.server.registerCallback(apPath,
+          proc (req: pw.HttpRequest, res: pw.HttpResponse) {.gcsafe.} =
+            {.gcsafe.}:
+              activitypub.apRoute(req, res)
+        )
