@@ -282,6 +282,11 @@ var
   enableBrowserSync* = true
     ## Whether to enable BrowserSync for live-reloading during writing
 
+  enableDevMode* = false
+    ## Whether `--devMode` is active: in this mode theme assets are served
+    ## live from `themes/<active>/assets/` (no copy into `project/assets/`)
+    ## so edits are visible without restarting the dev server
+
   stupidGreenProjectPath*: string
     ## The absolute path to the current StupidGreen project
 

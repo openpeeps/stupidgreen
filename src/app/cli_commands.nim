@@ -149,7 +149,13 @@ proc resolvePublicAsset*(rel: string): string =
   if relPath.len == 0 or relPath.startsWith(".") or relPath == ".." or
      relPath.startsWith(".." / ""):
     return ""
-  for diskName in ["project-assets", "theme-active", "theme-default"]:
+  # In devMode the active theme's `assets/` is served live (first), so
+  # edits to `themes/<name>/assets/` are visible without a restart or a
+  # copy step. Project assets remain reachable as a fallback.
+  let diskOrder =
+    if enableDevMode: @["theme-active", "theme-default", "project-assets"]
+    else: @["project-assets", "theme-active", "theme-default"]
+  for diskName in diskOrder:
     try:
       let d = storage().rawDisk(diskName)
       if d.exists(relPath):
@@ -346,6 +352,7 @@ proc runCommand*(v: Values) =
         Port(sgServer.port)
 
   enableBrowserSync = v.has("--sync")
+  enableDevMode = v.has("--devMode")
   # Hand the project server settings to the framework (`putInt` only
   # addresses top-level keys, so the nested `server` table is updated
   # directly). `--port` wins over the file; the rest always comes from
@@ -362,8 +369,9 @@ proc runCommand*(v: Values) =
   seedDefaultTheme(projectPath)
   initThemeDisks(projectPath)
   if v.has("--devMode"):
-    # theme development: serve theme assets live from source through the
-    # storage disks, without copying anything into the public `assets/` dir.
+    # theme development: serve theme assets live from `themes/<name>/assets/`
+    # through the storage disks (see `resolvePublicAsset`), without copying
+    # anything into the public `assets/` dir, so edits are visible on refresh.
     # Works with symlinked theme dirs (`ln -s <source> themes/<name>`).
     displayWarning("SG Dev-mode enabled: Serving theme assets live from source, no public copy")
   else:
