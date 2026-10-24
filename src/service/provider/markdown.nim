@@ -30,7 +30,7 @@ import pkg/supranim/network/websocket
 import pkg/supranim/support/slug
 import pkg/threading/rwlock
 
-import ./tim, ./search, ./activitypub
+import ./tim, ./search, ./activitypub, ./syntax
 import ../../app/structs
 
 export structs
@@ -755,6 +755,11 @@ initService Markdown[Global]:
           postReferenceTransform
         else:
           nil
+      # backend code highlighting via SweetSyntax (no client-side script)
+      loadThemeSyntax()
+      code_line_numbers = globalStupidGreenConfig.content.code_line_numbers
+      highlight_strip_lines = globalStupidGreenConfig.content.highlight_strip_lines
+      markdownOptions.codeBlockTransform = highlightCode
 
     proc openStore() =
       ## Opens the Boogie document store (replays the WAL + snapshot on open)

@@ -5,6 +5,7 @@ html lang="en"
     meta name="viewport" content="width=device-width, initial-scale=1"
     meta name="description" content=$this["config"]["metadata"]["description"]
     link rel="stylesheet" href="/assets/style.css"
+    link rel="stylesheet" href="/assets/sweetsyntax.css"
     link rel="alternate" type="application/rss+xml" title="RSS Feed" href=$this["site"]["url"] & "/feed.xml"
     link rel="alternate" type="text/plain" title="llms.txt" href=$this["site"]["url"] & "/llms.txt"
   body

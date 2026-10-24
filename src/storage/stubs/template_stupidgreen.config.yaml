@@ -39,6 +39,8 @@ content:
   enableAutoFormatLinks: true
   bottom_navigation: true
   codeHighlightTheme: "default"
+  code_line_numbers: false
+  highlight_strip_lines: true
   excerpt_length: 160
   readMoreText: "Continue reading this story"
   lazyloadIframes: false

@@ -44,6 +44,8 @@ const
   themeStub4xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "4xx.timl")
   themeStub5xx = staticRead(storagePath / "stubs" / "theme" / "views" / "errors" / "5xx.timl")
   themeStubStyle = staticRead(storagePath / "stubs" / "theme" / "assets" / "style.css")
+  themeStubSweetSyntaxCss = staticRead(storagePath / "stubs" / "theme" / "assets" / "sweetsyntax.css")
+  themeStubSyntaxReadme = staticRead(storagePath / "stubs" / "theme" / "syntax" / "README.md")
 
 proc loadStupidGreen(projectPath: string) =
   ## Loads the StupidGreen configuration from the project directory
@@ -288,6 +290,8 @@ proc scaffoldTheme*(destRoot, name, author: string): int =
     ("views/errors/4xx.timl", themeStub4xx),
     ("views/errors/5xx.timl", themeStub5xx),
     ("assets/style.css", themeStubStyle),
+    ("assets/sweetsyntax.css", themeStubSweetSyntaxCss),
+    ("syntax/README.md", themeStubSyntaxReadme),
   ]
   result = 0
   for (rel, content) in themeFiles:
