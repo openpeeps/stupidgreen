@@ -6,7 +6,11 @@ html lang="en"
     meta name="description" content=$this["config"]["metadata"]["description"]
     link rel="stylesheet" href="/assets/style.css"
     link rel="stylesheet" href="/assets/sweetsyntax.css"
-    link rel="alternate" type="application/rss+xml" title="RSS Feed" href=$this["site"]["url"] & "/feed.xml"
+    if $this["config"]["mode"] != "pages" and $this["config"]["feed"]["enable"] == "true":
+      if $this["config"]["feed"]["kind"] == "atom":
+        link rel="alternate" type="application/atom+xml" title="Atom Feed" href=$this["site"]["url"] & "/feed.xml"
+      else:
+        link rel="alternate" type="application/rss+xml" title="RSS Feed" href=$this["site"]["url"] & "/feed.xml"
     link rel="alternate" type="text/plain" title="llms.txt" href=$this["site"]["url"] & "/llms.txt"
   body
     div.site
