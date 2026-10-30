@@ -5,7 +5,7 @@
 # from nested pages, per-page `layout` views, and no blogging leftovers
 # (no posts/tags/categories/feed).
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 
 import std/[os, osproc, strutils, tempfiles]
 

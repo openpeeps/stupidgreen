@@ -4,7 +4,7 @@
 # the generated skeleton, its validation errors, and that a project
 # using the new theme builds successfully.
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 
 import std/[os, osproc, strutils, tempfiles]
 

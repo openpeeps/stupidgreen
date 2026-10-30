@@ -4,7 +4,7 @@
 # Create(Article) activities to the outbox, auto-accepting a signed Follow
 # request, and handling Undo(Follow).
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 
 import std/[unittest, json, os, random, strutils, tables, times]
 

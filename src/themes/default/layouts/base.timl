@@ -50,7 +50,7 @@ body:before {
           p.mt-2.mb-1
             for $link in items($this["config"]["footer"]["links"]):
               a.me-3.text-decoration-none href=$link["url"]: $link["title"]
-        p.mt-3.mb-0: $this["currentYear"] & " &copy; " & $this["config"]["metadata"]["title"] & " | AGPL-3.0 License"
+        p.mt-3.mb-0: $this["currentYear"] & " &copy; " & $this["config"]["metadata"]["title"] & " | MIT License"
         p: "Powered by "
           a href="https://github.com/openpeeps/stupidgreen": "StupidGreen"
           " &mdash; Made by Humans from "

@@ -2,7 +2,7 @@
 #
 # Verifies SweetSyntax backend highlighting integration.
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 
 import std/[unittest, os, strutils]
 import pkg/marvdown

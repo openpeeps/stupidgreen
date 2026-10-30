@@ -198,5 +198,5 @@ feed (kind `rss`/`atom`, limit) and navbar/footer links.
 - 🎉 Spread the word! **Tell your friends about StupidGreen**
 
 ### 🎩 License
-StupidGreen | `AGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+StupidGreen | `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
 Copyright &copy; 2026 OpenPeeps & Contributors &mdash; All rights reserved.

@@ -1,6 +1,6 @@
 # StupidGreen - A static blog generator for cool kids!
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 
 ## This Service provides Markdown parsing and rendering capabilities for StupidGreen.

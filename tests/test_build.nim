@@ -3,7 +3,7 @@
 # Builds a temporary blog project with the StupidGreen binary and verifies
 # the generated static site contains the expected files and content.
 #
-# (c) 2026 George Lemon | AGPL-3.0-or-later License
+# (c) 2026 George Lemon | MIT License
 
 import std/[os, osproc, strutils, tempfiles]
 

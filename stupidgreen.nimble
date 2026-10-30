@@ -3,7 +3,7 @@
 version       = "0.1.0"
 author        = "OpenPeeps"
 description   = "A fast static site generator for cool kids!"
-license       = "AGPL-3.0-or-later"
+license       = "MIT"
 srcDir        = "src"
 bin           = @["stupidgreen"]
 binDir        = "build"
