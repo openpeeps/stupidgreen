@@ -68,6 +68,7 @@ initService Tim[Global]:
           "site": {
             "title": globalStupidGreenConfig.metadata.title.get("StupidGreen"),
             "url": globalStupidGreenConfig.metadata.url,
+            "baseUrl": "",
             "logo": globalStupidGreenConfig.metadata.logo.get("/assets/stupidgreen.png"),
             "hasLogo": globalStupidGreenConfig.metadata.logo.isSome(),
             "hasNotifications": globalStupidGreenConfig.header.notification.isSome()
@@ -115,6 +116,7 @@ initService Tim[Global]:
       var site = newJObject()
       site["title"] = newJString(globalStupidGreenConfig.metadata.title.get("StupidGreen"))
       site["url"] = newJString(globalStupidGreenConfig.metadata.url)
+      site["baseUrl"] = newJString(globalStupidGreenConfig.metadata.url)
       site["logo"] = newJString(globalStupidGreenConfig.metadata.logo.get("/assets/stupidgreen.png"))
       site["hasLogo"] = newJBool(globalStupidGreenConfig.metadata.logo.isSome())
       site["hasNotifications"] = newJBool(globalStupidGreenConfig.header.notification.isSome())

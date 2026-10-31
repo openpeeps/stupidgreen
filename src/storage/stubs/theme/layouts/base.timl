@@ -4,8 +4,8 @@ html lang="en"
     title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
     meta name="viewport" content="width=device-width, initial-scale=1"
     meta name="description" content=$this["config"]["metadata"]["description"]
-    link rel="stylesheet" href="/assets/style.css"
-    link rel="stylesheet" href="/assets/sweetsyntax.css"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/style.css"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/sweetsyntax.css"
     if $this["config"]["mode"] != "pages":
       if $this["config"]["feed"]["enable"]:
         if $this["config"]["feed"]["kind"] == "atom":

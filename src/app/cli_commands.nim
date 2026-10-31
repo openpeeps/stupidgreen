@@ -60,6 +60,15 @@ proc loadStupidGreen(projectPath: string) =
     display("No StupidGreen Config found in the current directory (.yml/.yaml/.json)")
     QuitFailure.quit
   globalStupidGreenConfig.ensureLeadingSlash()
+  # `metadata.url` is required: it feeds absolute asset/feed/sitemap links
+  # (exposed to templates as `site.baseUrl`). Bare domains, subdomains and
+  # subpaths are accepted (`website.com`, `sub.website.com`,
+  # `website.com/other/website`); the scheme defaults to https.
+  globalStupidGreenConfig.metadata.url = normalizeSiteUrl(globalStupidGreenConfig.metadata.url)
+  if globalStupidGreenConfig.metadata.url.len == 0:
+    displayError("`metadata.url` is missing in stupidgreen.config.yaml. Set it to your " &
+      "web address, e.g. `url: \"website.com\"` (subpaths work too: `website.com/docs`).",
+      quitProcess = true)
   # `parseYAML` leaves absent keys at their zero value (Nim field
   # defaults do not survive parsing), so projects predating the
   # `server` section are normalized to the built-in defaults here.

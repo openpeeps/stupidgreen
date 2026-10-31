@@ -4,11 +4,11 @@ html data-bs-theme="dark"
     title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
     meta name="viewport" content="width=device-width, initial-scale=1"
     meta name="description" content=$this["config"]["metadata"]["description"]
-    link rel="icon" href="/assets/favicon-32x32.png" type="image/x-icon"
-    link rel="stylesheet" href="/assets/bootstrap.min.css"
-    link rel="stylesheet" href="/assets/style.css"
-    link rel="stylesheet" href="/assets/sweetsyntax.css"
-    link rel="stylesheet" href="/assets/print.css" media="print"
+    link rel="icon" href=$this["site"]["baseUrl"] & "/assets/favicon-32x32.png" type="image/x-icon"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/bootstrap.min.css"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/style.css"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/sweetsyntax.css"
+    link rel="stylesheet" href=$this["site"]["baseUrl"] & "/assets/print.css" media="print"
     if $this["config"]["mode"] != "pages":
       if $this["config"]["feed"]["enable"]:
         if $this["config"]["feed"]["kind"] == "atom":
@@ -23,7 +23,7 @@ html data-bs-theme="dark"
 body:before {
   content: "";
   display: block;
-  background-image: url("/assets/image.png");
+  background-image: url(""" & $this["site"]["baseUrl"] & """/assets/image.png");
   background-repeat: repeat;
   background-size: 257px auto;
   position: fixed;
@@ -56,9 +56,9 @@ body:before {
           " &mdash; Made by Humans from "
           a href="https://openpeeps.dev": "OpenPeeps"
 
-    script src="/assets/bootstrap.min.js"
-    script src="/assets/highlight.min.js"
-    script type="text/javascript" src="/assets/app.js"
+    script src=$this["site"]["baseUrl"] & "/assets/bootstrap.min.js"
+    script src=$this["site"]["baseUrl"] & "/assets/highlight.min.js"
+    script type="text/javascript" src=$this["site"]["baseUrl"] & "/assets/app.js"
 
     if $this["config"]["content"]["lazyloadIframes"] or
        $this["config"]["content"]["lazyloadVideos"] or

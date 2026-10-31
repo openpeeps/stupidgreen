@@ -317,3 +317,17 @@ proc ensureLeadingSlash*(config: StupidGreenConfig) =
   for link in config.footer.links.get(@[]):
     if link.url.len > 0 and link.url[0] != '/' and not isAbsoluteUrl(link.url):
       link.url.insert("/", 0)
+
+proc normalizeSiteUrl*(raw: string): string =
+  ## Normalizes `metadata.url`: trims whitespace, prepends `https://`
+  ## when no scheme is present (so `website.com`, `sub.website.com` and
+  ## `website.com/other/website` all work), and strips trailing slashes.
+  ## Returns "" when the input is empty (callers must reject it:
+  ## the site URL is required for absolute asset/feed/sitemap links).
+  result = raw.strip()
+  if result.len == 0:
+    return ""
+  if "://" notin result:
+    result = "https://" & result
+  while result.len > 0 and result[^1] == '/':
+    result.setLen(result.len - 1)

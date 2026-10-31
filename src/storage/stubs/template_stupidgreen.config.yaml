@@ -8,6 +8,9 @@ theme: "default"
 metadata:
   title: "StupidGreen Blog"
   description: "A static blog built with StupidGreen"
+  # Your public web address: bare domains, subdomains and subpaths all work
+  # (`website.com`, `sub.website.com`, `website.com/docs`). The scheme
+  # defaults to https. Used for absolute asset/feed/sitemap links.
   url: "https://example.com"
   author: "George Lemon"
   keywords: ["blog", "stupidgreen"]
