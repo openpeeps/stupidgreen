@@ -8,7 +8,7 @@ main.site-main
   if len($this["post"]["meta"]["tags"]) > 0:
     div.tag-list
       for $tag in items($this["post"]["meta"]["tags"]):
-        a href="/tags/" & $tag["slug"]: $tag["name"]
+        a href=url("/tags/" & $tag["slug"]): $tag["name"]
   h1: $this["post"]["meta"]["title"]
   div.post-meta
     if $this["post"]["meta"]["author"] != "":
