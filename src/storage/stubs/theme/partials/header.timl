@@ -1,6 +1,6 @@
 header.site-header
   a.site-brand href="/"
-    img src=$this["site"]["logo"] alt=$this["site"]["title"] height="32"
+    img src=url($this["site"]["logo"]) alt=$this["site"]["title"] height="32"
   if $this["site"]["hasNotifications"] == true:
     div.site-notice: $this["config"]["header"]["notification"]
   if $this["config"]["header"]["search"]["enable"] == true:

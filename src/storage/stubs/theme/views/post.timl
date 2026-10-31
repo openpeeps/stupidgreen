@@ -24,7 +24,7 @@ main.site-main
     button type="button" data-share-markdown="": "Copy as Markdown"
   if $this["post"]["meta"]["cover"] != "":
     div.post-cover
-      img src=$this["post"]["meta"]["cover"] alt=$this["post"]["meta"]["title"]
+      img src=url($this["post"]["meta"]["cover"]) alt=$this["post"]["meta"]["title"]
   if len($this["post"]["toc"]) > 1:
     nav.branch-nav
       h2: "Table of Contents"

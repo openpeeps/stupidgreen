@@ -47,7 +47,7 @@ div.container-fluid.my-4
 
     if $this["post"]["meta"]["cover"] != "":
       div.row.mb-4 > div.col-12
-        img.img-fluid.rounded-4.w-100 src=$this["post"]["meta"]["cover"] alt=$this["post"]["meta"]["title"]
+        img.img-fluid.rounded-4.w-100 src=url($this["post"]["meta"]["cover"]) alt=$this["post"]["meta"]["title"]
 
     if len($this["post"]["toc"]) > 1:
       div.row.mb-4 > div.col-12

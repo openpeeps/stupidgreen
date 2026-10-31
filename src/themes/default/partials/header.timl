@@ -4,7 +4,7 @@ div.navbar-container-area.sticky-top.user-select-none
   nav.navbar.navbar-expand-lg.py-2
     div.container.d-flex
       a.navbar-brand.fw-bold.py-0 href="/"
-        img src=$this["site"]["logo"] alt=$this["site"]["title"] height="32"
+        img src=url($this["site"]["logo"]) alt=$this["site"]["title"] height="32"
 
       if $this["config"]["header"]["search"]["enable"] == true:
         div.col-6.col-lg-4

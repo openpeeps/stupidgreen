@@ -25,6 +25,21 @@ initService Tim[Global]:
   # and provides a simple interface to render HTML pages
   backend do:
     var timInstance*: TimEngine
+    var timBaseUrl* = ""
+      ## Base URL prepended by the `url()` template function. Empty in
+      ## dev (the server resolves root-relative paths itself); the
+      ## normalized `metadata.url` in builds (absolute asset links).
+
+    proc siteUrl*(path: string): string =
+      ## Resolves a root-relative path (`/assets/style.css`) against the
+      ## site base URL. Absolute URLs pass through untouched; a missing
+      ## leading slash is added. In dev the base is empty, so plain
+      ## root-relative paths are returned (served by the dev server).
+      if path.startsWith("http://") or path.startsWith("https://") or
+         path.startsWith("//") or path.startsWith("data:"):
+        return path
+      let p = if path.len > 0 and path[0] != '/': "/" & path else: path
+      result = timBaseUrl & p
 
     Icon.init(
       source = storagePath / "icons",
@@ -59,6 +74,21 @@ initService Tim[Global]:
           let iconName = args[0].stringVal[]
           return initValue($icon(iconName))
         )
+
+      timInstance.userScript.addProc("url", @[paramDef("path", ttyString)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(siteUrl(args[0].stringVal[]))
+      )
+      timInstance.userScript.addProc("url", @[paramDef("path", ttyJson)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          var p = ""
+          let v = args[0].jsonVal
+          if not v.isNil:
+            p = if v.kind == JString: v.getStr() else: $v
+          return initValue(siteUrl(p))
+      )
+
+      timBaseUrl = "" # dev serves root-relative paths itself
 
       tim.initCommonStorage:
         {
@@ -104,6 +134,19 @@ initService Tim[Global]:
           let iconName = args[0].stringVal[]
           return initValue($icon(iconName))
       )
+      timInstance.userScript.addProc("url", @[paramDef("path", ttyString)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(siteUrl(args[0].stringVal[]))
+      )
+      timInstance.userScript.addProc("url", @[paramDef("path", ttyJson)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          var p = ""
+          let v = args[0].jsonVal
+          if not v.isNil:
+            p = if v.kind == JString: v.getStr() else: $v
+          return initValue(siteUrl(p))
+      )
+      timBaseUrl = globalStupidGreenConfig.metadata.url
       timInstance.precompile()
 
     proc buildRender*(view, path: string, local: JsonNode): string =
