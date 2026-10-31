@@ -7,13 +7,13 @@
 ##
 ## It monitors the `posts/` and `pages/` directories for markdown files, parses
 ## them into HTML, and serves the rendered content. Parsed content is persisted
-## in a Boogie document store (WAL-based) for fast incremental rebuilds.
+## in a lock-free FBE snapshot (`stupidgreen.db`) for fast incremental rebuilds.
 ##
 ## Key Features:
 ## - Real-time monitoring of markdown files using Watchout
 ## - Parsing markdown files into HTML using Marvdown with configurable options
 ## - Extraction of metadata from the YAML front matter (title, date, tags, etc.)
-## - Persistence of parsed content in a Boogie document store
+## - Persistence of parsed content in a lock-free FBE snapshot (`stupidgreen.db`)
 ## - Tag/category indexes and chronological navigation (older/newer) for posts
 ## - Standalone pages from the `pages/` directory mapped to their URL path
 ## - Spotlight search integration
@@ -21,16 +21,15 @@
 import std/[os, tables, httpcore, strutils,
           options, sequtils, macros, times, algorithm]
 
-import pkg/openparser/[json, html]
+import pkg/openparser/[json, html, fbe]
 import pkg/[watchout, marvdown, kapsis/cli]
-import pkg/boogie/stores/docstore
 
 import pkg/supranim/core/[services, application, paths]
 import pkg/supranim/network/websocket
 import pkg/supranim/support/slug
 import pkg/threading/rwlock
 
-import ./tim, ./search, ./activitypub, ./syntax
+import ./tim, ./search, ./activitypub, ./syntax, ./dbcodec
 import ../../app/structs
 
 export structs
@@ -51,8 +50,7 @@ initService Markdown[Global]:
     var
       contentPath: string     # the `posts/` directory
       pagesPath: string       # the `pages/` directory
-      storePath: string
-      store: DocumentStore
+      dbFile: string          # the `stupidgreen.db` snapshot file
       watcher*: Watchout
       hasChanges: bool
       gMarkdownService*: MarkdownInstance
@@ -411,8 +409,42 @@ initService Markdown[Global]:
             continue
           indexEntry(url, page)
 
-    proc loadFromStore() =
-      ## Loads all persisted content from the Boogie document store
+    proc writeMarkdownInstanceFields(b: var Buffer, inst: MarkdownInstance) =
+      ## Serializes the cached posts/pages maps (indexes are rebuilt
+      ## in-memory via `rebuildIndex`, and search via `rebuildSearch`)
+      b.writeField(1'u16, proc (bb: var Buffer) = bb.writePostMap(inst.posts))
+      b.writeField(2'u16, proc (bb: var Buffer) = bb.writePostMap(inst.pages))
+
+    proc handleMarkdownInstanceField(fid: uint16, fsz: int, b: var Buffer,
+                                     into: var MarkdownInstance) =
+      case fid
+      of 1'u16: into.posts = b.readPostMap()
+      of 2'u16: into.pages = b.readPostMap()
+      else: discard
+
+    proc encodeMarkdownInstance(inst: MarkdownInstance): Buffer =
+      ## Serializes a `MarkdownInstance` into an FBE payload buffer
+      ## (wrap with `writeDbFile` for the signature envelope)
+      result = initBuffer()
+      encodeRootFrom(result, inst, writeMarkdownInstanceFields, DbCodecVersion)
+
+    proc decodeMarkdownInstance(b: var Buffer): MarkdownInstance =
+      ## Deserializes a `MarkdownInstance` from an FBE payload buffer
+      ## (unwrap with `readDbFile` first)
+      result = MarkdownInstance(
+        posts: newTable[string, Post](),
+        pages: newTable[string, Post](),
+        sorted: @[],
+        byTag: newTable[string, seq[Post]](),
+        byCategory: newTable[string, seq[Post]](),
+        tagNames: newTable[string, string](),
+        categoryNames: newTable[string, string](),
+      )
+      var outVer: uint32
+      b.decodeRootInto(result, handleMarkdownInstanceField, outVer)
+
+    proc freshService() =
+      ## Starts with empty in-memory tables; the scan below rebuilds them
       gMarkdownService = MarkdownInstance(
         posts: newTable[string, Post](),
         pages: newTable[string, Post](),
@@ -422,15 +454,42 @@ initService Markdown[Global]:
         tagNames: newTable[string, string](),
         categoryNames: newTable[string, string](),
       )
-      for key, doc in store.pairs:
-        try:
-          let post = fromJson(toJson(doc), Post)
-          if key.startsWith("page:"):
-            gMarkdownService.pages[post.meta.url] = post
-          else:
-            gMarkdownService.posts[post.meta.url] = post
-        except:
-          discard # skip corrupted documents
+
+    proc removeLegacyStoreFiles() =
+      ## Best-effort removal of pre-FBE Boogie files (lock, WAL, snapshot).
+      ## Unlinking is safe even if an old binary still runs: it holds open
+      ## file descriptors, and the new snapshot lives in `stupidgreen.db`.
+      let legacyDir = dbFile.parentDir / "stupidgreen"
+      for f in ["posts.lock", "posts.wal", "posts.ddb"]:
+        try: removeFile(legacyDir / f)
+        except: discard
+
+    proc loadFromStore() =
+      ## Loads cached content from the FBE snapshot. Anything but `dbOk`
+      ## (missing, stale or foreign file) starts fresh; the scan below
+      ## rebuilds the cache from the markdown sources.
+      freshService()
+      var payload: Buffer
+      if readDbFile(dbFile, payload) != dbOk:
+        return
+      try:
+        let inst = decodeMarkdownInstance(payload)
+        if not inst.posts.isNil:
+          gMarkdownService.posts = inst.posts
+        if not inst.pages.isNil:
+          gMarkdownService.pages = inst.pages
+      except:
+        freshService()
+      removeLegacyStoreFiles()
+
+    proc saveDb() =
+      ## Persists the in-memory posts/pages maps to the FBE snapshot.
+      ## A cache write failure must never break a build or the dev server.
+      try:
+        writeDbFile(dbFile, encodeMarkdownInstance(gMarkdownService))
+        removeLegacyStoreFiles()
+      except:
+        discard
 
     proc llmsTxtContent*(pagesPath: string): string =
       ## Extracts the contents of the project's `pages/llms.md` file as plain
@@ -448,8 +507,28 @@ initService Markdown[Global]:
 
     proc scanDir(dir: string, isPage: bool) =
       ## Scans a content directory, parsing changed/new markdown files into
-      ## the document store and the in-memory tables
+      ## the in-memory tables (persisted later via `saveDb`)
       let titleSlugs = not isPage and globalStupidGreenConfig.content.slugFromTitle
+
+      proc cachedAt(url: string): Post =
+        ## Cached document for `url`, or an empty Post when absent
+        if isPage:
+          if gMarkdownService.pages.hasKey(url):
+            return gMarkdownService.pages[url]
+        else:
+          if gMarkdownService.posts.hasKey(url):
+            return gMarkdownService.posts[url]
+        result = Post()
+
+      proc forget(url: string) =
+        ## Drops a stale cached document for `url`
+        if isPage:
+          if gMarkdownService.pages.hasKey(url):
+            gMarkdownService.pages.del(url)
+        else:
+          if gMarkdownService.posts.hasKey(url):
+            gMarkdownService.posts.del(url)
+
       for path in walkDirRec(dir, {pcFile}):
         let fpath = path.splitFile
         if fpath.ext != ".md" or fpath.name.startsWith("!"):
@@ -465,46 +544,25 @@ initService Markdown[Global]:
           let url =
             if isPage: getPageUrl(dir, path)
             else: getSlugHash(dir, path)[1]
-          let storeKey = (if isPage: "page:" else: "") & url
           let mtime = getLastModificationTime(path).toUnix
-          if store.hasKey(storeKey):
-            let existing = store.get(storeKey)
-            if existing.isSome:
-              try:
-                let prev = fromJson(toJson(existing.get()), Post)
-                if prev.meta.fileMtime >= mtime:
-                  continue # skip unchanged files
-              except:
-                discard
+          let prev = cachedAt(url)
+          if prev.meta.url.len > 0 and prev.meta.fileMtime >= mtime:
+            continue # skip unchanged files
 
         let post = parseMarkdownFile(dir, path, isPage)
         let url = post.meta.url
-        let storeKey = (if isPage: "page:" else: "") & url
-        var stalePathKey = ""
         if titleSlugs:
-          # remove any stale key left over from a previous path-derived slug
-          let pathKey = (if isPage: "page:" else: "") & getSlugHash(dir, path)[1]
-          if pathKey != storeKey and store.hasKey(pathKey):
-            stalePathKey = pathKey
-        # skip the write when the stored document is already up-to-date
-        var skipWrite = false
-        if stalePathKey.len == 0 and store.hasKey(storeKey):
-          let existing = store.get(storeKey)
-          if existing.isSome:
-            try:
-              let prev = fromJson(toJson(existing.get()), Post)
-              if prev.meta.fileMtime >= post.meta.fileMtime:
-                skipWrite = true
-            except:
-              discard
-        if not skipWrite:
-          if stalePathKey.len > 0:
-            discard store.delete(stalePathKey)
-          store.putObj(storeKey, post)
-        if isPage:
-          gMarkdownService.pages[url] = post
-        else:
-          gMarkdownService.posts[url] = post
+          # remove any stale entry left over from a previous path-derived slug
+          let pathUrl = getSlugHash(dir, path)[1]
+          if pathUrl != url:
+            forget(pathUrl)
+        # skip the write when the cached document is already up-to-date
+        let prev = cachedAt(url)
+        if prev.meta.url.len == 0 or prev.meta.fileMtime < post.meta.fileMtime:
+          if isPage:
+            gMarkdownService.pages[url] = post
+          else:
+            gMarkdownService.posts[url] = post
 
     proc scanMarkdownFiles*(contentPath, pagesPath: string) =
       ## Scans the posts and pages directories, parsing changed/new markdown
@@ -521,7 +579,7 @@ initService Markdown[Global]:
           scanDir(pagesPath, true)
       rebuildIndex()
       rebuildSearch()
-      store.checkpoint()
+      saveDb()
 
     # WebSocket Connection - Callbacks
     proc onMessageCallback(ws: WsConnection, kind: WsFrameKind, data: openArray[byte]) =
@@ -576,17 +634,21 @@ initService Markdown[Global]:
           let pathUrl =
             if isPage: getPageUrl(basePath, path)
             else: getSlugHash(basePath, path)[1]
-          let pathKey = (if isPage: "page:" else: "") & pathUrl
-          if store.hasKey(pathKey):
+          if (isPage and gMarkdownService.pages.hasKey(pathUrl)) or
+             (not isPage and gMarkdownService.posts.hasKey(pathUrl)):
             previousUrl = pathUrl
             try:
-              let prev = fromJson(toJson(store.get(pathKey).get()), Post)
+              let prev =
+                if isPage: gMarkdownService.pages[pathUrl]
+                else: gMarkdownService.posts[pathUrl]
               wasPublished = not prev.meta.draft
             except:
               discard
         else:
           try:
-            let prev = fromJson(toJson(store.get((if isPage: "page:" else: "") & previousUrl).get()), Post)
+            let prev =
+              if isPage: gMarkdownService.pages[previousUrl]
+              else: gMarkdownService.posts[previousUrl]
             wasPublished = not prev.meta.draft
           except:
             discard
@@ -594,16 +656,12 @@ initService Markdown[Global]:
         writeWith changeLocker:
           # a URL change (e.g. a title edit) replaces the old entry
           if previousUrl.len > 0 and previousUrl != url:
-            let oldKey = (if isPage: "page:" else: "") & previousUrl
-            discard store.delete(oldKey)
             if isPage:
               if gMarkdownService.pages.hasKey(previousUrl):
                 gMarkdownService.pages.del(previousUrl)
             else:
               if gMarkdownService.posts.hasKey(previousUrl):
                 gMarkdownService.posts.del(previousUrl)
-          let storeKey = (if isPage: "page:" else: "") & url
-          store.putObj(storeKey, post)
           if isPage:
             gMarkdownService.pages[url] = post
           else:
@@ -611,7 +669,7 @@ initService Markdown[Global]:
           nowPublished = not post.meta.draft
           rebuildIndex()
           rebuildSearch()
-          store.checkpoint()
+          saveDb()
         if not isPage:
           # a title change moved the URL: unpublish the old URL first so
           # federated feeds get a `Delete` for it
@@ -634,9 +692,7 @@ initService Markdown[Global]:
         url =
           if isPage: getPageUrl(basePath, path)
           else: getSlugHash(basePath, path)[1]
-      let storeKey = (if isPage: "page:" else: "") & url
       writeWith changeLocker:
-        discard store.delete(storeKey)
         if isPage:
           if gMarkdownService.pages.hasKey(url):
             gMarkdownService.pages.del(url)
@@ -645,7 +701,7 @@ initService Markdown[Global]:
             gMarkdownService.posts.del(url)
         rebuildIndex()
         rebuildSearch()
-        store.checkpoint()
+        saveDb()
       if not isPage:
         activitypub.removePost(url)
       notifyClients()
@@ -761,21 +817,12 @@ initService Markdown[Global]:
       highlight_strip_lines = globalStupidGreenConfig.content.highlight_strip_lines
       markdownOptions.codeBlockTransform = highlightCode
 
-    proc openStore() =
-      ## Opens the Boogie document store (replays the WAL + snapshot on open)
-      store = openDocumentStore(storePath, "posts",
-        defaultEncoding = deJson,
-        checkpointEveryOps = 100,
-        walFlushEveryOps = 100
-      )
-      loadFromStore()
-
     proc initMarkdownInstance*(app: Application, dbPath: string) =
-      ## Opens the Boogie store and loads existing content (used by `build`)
-      storePath = dbPath
+      ## Loads the FBE snapshot and scans content (used by `build`)
+      dbFile = dbPath
       contentPath = app.applicationPaths.getInstallationPath / "posts"
       pagesPath = app.applicationPaths.getInstallationPath / "pages"
-      createDir(storePath)
+      createDir(dbFile.parentDir)
       if globalStupidGreenConfig.mode == modePages:
         # pages-only site: never create `posts/`, the blogging
         # system is disabled
@@ -787,13 +834,13 @@ initService Markdown[Global]:
       # is written only once by `stupidgreen new`; a deleted index.md stays
       # deleted.
       setupMarkdownOptions()
-      openStore()
+      loadFromStore()
 
     proc init*(app: Application) =
       ## Initialize the Markdown service and start monitoring files
       contentPath = app.applicationPaths.getInstallationPath / "posts"
       pagesPath = app.applicationPaths.getInstallationPath / "pages"
-      storePath = app.applicationPaths.getInstallationPath / "storage" / "stupidgreen"
+      dbFile = app.applicationPaths.getInstallationPath / "storage" / "stupidgreen.db"
 
       if globalStupidGreenConfig.mode == modePages:
         # pages-only site: never create `posts/`, the blogging
@@ -802,7 +849,7 @@ initService Markdown[Global]:
       else:
         createDir(contentPath)
       createDir(pagesPath)
-      createDir(storePath)
+      createDir(dbFile.parentDir)
 
       # Note: never create content files here. The default `posts/index.md`
       # is written only once by `stupidgreen new`; a deleted index.md stays
@@ -810,7 +857,7 @@ initService Markdown[Global]:
 
       setupMarkdownOptions()
 
-      openStore()
+      loadFromStore()
 
       # Create a new Watchout instance to monitor markdown files
       let watchDirs =

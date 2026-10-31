@@ -168,18 +168,18 @@ suite "ActivityPub service":
     finally:
       removeDir(dir)
 
-  test "persists state to the boogie store":
+  test "persists state to the activitypub.json file":
     let dir = tmpProject()
     try:
       initTestService(dir)
       ap.publishPost(samplePost(), "<h1>Hello</h1>", wasPublished = false)
       check(ap.getOutbox().len == 1)
-      let storeDir = dir / "storage" / "stupidgreen-activitypub"
-      check(dirExists(storeDir))
-      var files = 0
-      for kind, fpath in walkDir(storeDir):
-        if kind == pcFile:
-          inc files
-      check(files > 0)
+      let dbPath = dir / "storage" / "stupidgreen-activitypub" / "activitypub.json"
+      check(fileExists(dbPath))
+      # re-init loads the same keypair and outbox back (stable identity)
+      let before = ap.getOutbox()
+      initTestService(dir)
+      check(ap.getOutbox().len == 1)
+      check($ap.getOutbox()[0] == $before[0])
     finally:
       removeDir(dir)

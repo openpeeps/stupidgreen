@@ -407,10 +407,10 @@ proc buildCommand*(v: Values) =
   let installPath = app.applicationPaths.getInstallationPath
   let postsPath = installPath / "posts"
   let pagesPath = installPath / "pages"
-  let storePath = installPath / "storage" / "stupidgreen"
+  let dbFile = installPath / "storage" / "stupidgreen.db"
   let outputPath = installPath / "_build"
 
-  app.initMarkdownInstance(storePath)
+  app.initMarkdownInstance(dbFile)
   scanMarkdownFiles(postsPath, pagesPath)
 
   tim.buildSetup(

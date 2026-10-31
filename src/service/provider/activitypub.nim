@@ -21,7 +21,7 @@
 
 import std/[os, uri, strutils, options, tables]
 
-import pkg/[activitypub, boogie/stores/docstore]
+import pkg/activitypub
 import pkg/activitypub/datatypes/metatypes
 import pkg/openparser/json
 import pkg/threading/rwlock
@@ -62,10 +62,11 @@ var
   apFollowingUrl*: string
   apActorJson: JsonNode
   apPrivateKeyHex: string
+  apPublicKeyPem: string
   apDispatcher*: InboxDispatcher
   apStore*: ActivityStore
   apLocker = createRwLock()
-  apPersist: DocumentStore
+  apDbPath: string
   followers: seq[Follower]
   outbox: seq[JsonNode]
   apInitialized = false
@@ -110,6 +111,20 @@ proc buildActorJson(publicKeyPem: string): JsonNode =
   if iconUrl.len > 0:
     result["icon"] = %*{"type": "Image", "mediaType": "image/png", "url": iconUrl}
 
+proc saveApDb() =
+  ## Persists the actor keypair, followers and outbox to a lock-free
+  ## JSON file. A write failure must never break federation handling.
+  try:
+    let doc = %*{
+      "actor": fromJson(toJson(ActorRecord(
+        privateKeyHex: apPrivateKeyHex, publicKeyPem: apPublicKeyPem))),
+      "followers": fromJson(toJson(FollowerList(items: followers))),
+      "outbox": %*{"items": outbox}
+    }
+    writeFile(apDbPath, $doc)
+  except:
+    discard
+
 proc initActivityPub*(projectPath, baseUrl: string, settings: ActivityPubSettings) =
   ## Initializes the ActivityPub service: opens the persistence store, loads
   ## (or generates) the actor keypair, and loads followers + outbox. A no-op
@@ -133,29 +148,47 @@ proc initActivityPub*(projectPath, baseUrl: string, settings: ActivityPubSetting
   outbox = @[]
   apInitialized = false
 
-  let storeDir = projectPath / "storage" / "stupidgreen-activitypub"
-  createDir(storeDir)
-  apPersist = openDocumentStore(storeDir, "activitypub",
-    defaultEncoding = deJson,
-    checkpointEveryOps = 50,
-    walFlushEveryOps = 50
-  )
+  let apDir = projectPath / "storage" / "stupidgreen-activitypub"
+  createDir(apDir)
+  apDbPath = apDir / "activitypub.json"
+  # best-effort removal of pre-JSON Boogie files (lock, WAL, snapshot).
+  # Unlinking is safe even if an old binary still runs: it holds open
+  # file descriptors, and the new state lives in `activitypub.json`.
+  for f in ["activitypub.lock", "activitypub.wal", "activitypub.ddb"]:
+    try: removeFile(apDir / f)
+    except: discard
 
-  # load or generate the actor's Ed25519 keypair (must stay stable across restarts)
+  # load persisted state (missing or corrupt file starts fresh)
   var privateKeyHex = ""
   var publicKeyPem = ""
-  if apPersist.hasKey("actor"):
-    try:
-      let rec = fromJson(toJson(apPersist.get("actor").get()), ActorRecord)
-      privateKeyHex = rec.privateKeyHex
-      publicKeyPem = rec.publicKeyPem
-    except:
-      discard
+  try:
+    if fileExists(apDbPath):
+      let doc = fromJson(readFile(apDbPath))
+      try:
+        let rec = fromJson(toJson(doc{"actor"}), ActorRecord)
+        privateKeyHex = rec.privateKeyHex
+        publicKeyPem = rec.publicKeyPem
+      except:
+        discard
+      try:
+        followers = fromJson(toJson(doc{"followers"}), FollowerList).items
+      except:
+        followers = @[]
+      try:
+        outbox = @[]
+        for item in doc{"outbox"}{"items"}:
+          outbox.add(item)
+      except:
+        outbox = @[]
+  except:
+    discard
+
+  # load or generate the actor's Ed25519 keypair (must stay stable across restarts)
   if privateKeyHex.len == 0:
     (publicKeyPem, privateKeyHex) = generateEd25519KeypairPem()
-    apPersist.putObj("actor", ActorRecord(
-      privateKeyHex: privateKeyHex, publicKeyPem: publicKeyPem), sync = true)
   apPrivateKeyHex = privateKeyHex
+  apPublicKeyPem = publicKeyPem
+  saveApDb()
 
   apActorJson = buildActorJson(publicKeyPem)
   apStore.actors[apUsername] = ActorData(
@@ -164,21 +197,6 @@ proc initActivityPub*(projectPath, baseUrl: string, settings: ActivityPubSetting
     privateKeyHex: privateKeyHex,
     publicKeyPem: publicKeyPem
   )
-
-  # load persisted followers + outbox
-  if apPersist.hasKey("followers"):
-    try:
-      followers = fromJson(toJson(apPersist.get("followers").get()), FollowerList).items
-    except:
-      followers = @[]
-  if apPersist.hasKey("outbox"):
-    try:
-      let node = apPersist.get("outbox").get()
-      for item in node{"items"}:
-        outbox.add(item)
-    except:
-      outbox = @[]
-  apPersist.checkpoint()
 
   apDispatcher = newDispatcher(proc (keyId: string): JsonNode =
     try:
@@ -212,11 +230,11 @@ proc getOutbox*(): seq[JsonNode] =
 
 proc persistFollowers() =
   ## Persists the followers list. Caller must hold the write lock.
-  apPersist.putObj("followers", FollowerList(items: followers), sync = true)
+  saveApDb()
 
 proc persistOutbox() =
   ## Persists the outbox. Caller must hold the write lock.
-  apPersist.putObj("outbox", %*{"items": outbox}, sync = true)
+  saveApDb()
 
 proc onFollow(f: Follow, verifiedBy: string): InboxResult =
   ## Auto-accepts a Follow: stores the follower and delivers an Accept
