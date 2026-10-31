@@ -2,4 +2,4 @@ main.error-page
   p.error-code: "500"
   h1: $this["post"]["meta"]["title"]
   p: $this["post"]["meta"]["description"]
-  a href="/": "Back to Homepage"
+  a href=url(""): "Back to Homepage"

@@ -4,7 +4,7 @@ div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
     div.row.mb-4 > div.col-12
       div.d-flex.align-items-center.gap-2.flex-wrap
         h1.h4.fw-bold.my-0: "Category: " & $this["category"]
-        a.badge.text-bg-secondary.text-decoration-none href="/categories/" & $this["categorySlug"]: $this["categorySlug"]
+        a.badge.text-bg-secondary.text-decoration-none href=url("/categories/" & $this["categorySlug"]): $this["categorySlug"]
       if len($this["posts"]) > 0:
         p.text-muted.mb-0: len($this["posts"]) & " post(s)"
 

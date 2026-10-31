@@ -33,12 +33,16 @@ initService Tim[Global]:
     proc siteUrl*(path: string): string =
       ## Resolves a root-relative path (`/assets/style.css`) against the
       ## site base URL. Absolute URLs pass through untouched; a missing
-      ## leading slash is added. In dev the base is empty, so plain
-      ## root-relative paths are returned (served by the dev server).
+      ## leading slash is added (empty path resolves to the homepage `/`).
+      ## In dev the base is empty, so plain root-relative paths are
+      ## returned (served by the dev server).
       if path.startsWith("http://") or path.startsWith("https://") or
          path.startsWith("//") or path.startsWith("data:"):
         return path
-      let p = if path.len > 0 and path[0] != '/': "/" & path else: path
+      let p =
+        if path.len == 0: "/"
+        elif path[0] != '/': "/" & path
+        else: path
       result = timBaseUrl & p
 
     Icon.init(
