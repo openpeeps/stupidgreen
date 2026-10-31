@@ -2,7 +2,7 @@ if len($this["posts"]) > 0:
   for $post in items($this["posts"]):
     article.post-card
       div
-        h2 > a href=$post["meta"]["url"]: $post["meta"]["title"]
+        h2 > a href=url($post["meta"]["url"]): $post["meta"]["title"]
         div.post-meta
           if $post["meta"]["author"] != "":
             span: $post["meta"]["author"]
@@ -15,7 +15,7 @@ if len($this["posts"]) > 0:
           p: $post["meta"]["excerpt"]
         if $this["config"]["content"]["readMoreText"] != "":
           div
-            a href=$post["meta"]["url"]: $this["config"]["content"]["readMoreText"] & " &rarr;"
+            a href=url($post["meta"]["url"]): $this["config"]["content"]["readMoreText"] & " &rarr;"
 else:
   div.empty
     p: "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"

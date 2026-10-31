@@ -2,7 +2,7 @@ if len($this["posts"]) > 0:
   for $post in items($this["posts"]):
     article.post-card.mb-5.pb-5
       div
-        h2.display-5.fw-bold.mb-2 > a.text-decoration-none href=$post["meta"]["url"]: $post["meta"]["title"]
+        h2.display-5.fw-bold.mb-2 > a.text-decoration-none href=url($post["meta"]["url"]): $post["meta"]["title"]
         div.mb-3.d-flex.align-items-center.text-muted.small.flex-wrap.gap-2
           if $post["meta"]["author"] != "":
             span: $post["meta"]["author"]
@@ -14,7 +14,7 @@ if len($this["posts"]) > 0:
           p.card-text.mb-2: $post["meta"]["excerpt"]
         if $this["config"]["content"]["readMoreText"] != "":
           div.mb-3
-            a.link-light.text-decoration-none.fw-medium href=$post["meta"]["url"]: $this["config"]["content"]["readMoreText"] & " &rarr;"
+            a.link-light.text-decoration-none.fw-medium href=url($post["meta"]["url"]): $this["config"]["content"]["readMoreText"] & " &rarr;"
 else:
   div.card.border-dark.rounded-4 > div.card-body.p-5.text-center
     p.lead.mb-0: "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"
