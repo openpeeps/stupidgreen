@@ -417,7 +417,13 @@ proc buildCommand*(v: Values) =
   let postsPath = installPath / "posts"
   let pagesPath = installPath / "pages"
   let dbFile = installPath / "storage" / "stupidgreen.db"
-  let outputPath = installPath / "_build"
+  let outputPath =
+    if v.has("--out"):
+      # custom output dir (created with parents when missing);
+      # replaces the default `<project>/_build`
+      absolutePath($(v.get("--out").getStr))
+    else:
+      installPath / "_build"
 
   app.initMarkdownInstance(dbFile)
   scanMarkdownFiles(postsPath, pagesPath)
@@ -435,8 +441,8 @@ proc buildCommand*(v: Values) =
     fallbackTheme = defaultThemeName
   )
 
-  discard existsOrCreateDir(outputPath)
-  discard existsOrCreateDir(outputPath / "assets")
+  createDir(outputPath)
+  createDir(outputPath / "assets")
 
   proc copyDiskAssets(diskName: string) =
     ## Copies every file from a theme/project storage disk into the build

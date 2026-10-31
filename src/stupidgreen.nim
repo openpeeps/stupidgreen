@@ -43,8 +43,9 @@ initApp(skipLocalConfig = true):
     run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
       ## Create a new SG instance for given project
 
-    build path(project):
+    build path(project), ?string("--out"):
       ## Generate static HTML website from SG project
+      ## (`--out <dir>` writes to a custom output dir instead of `<project>/_build`)
 
   services do:
     # init Logger Service

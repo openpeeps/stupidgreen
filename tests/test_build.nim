@@ -185,6 +185,19 @@ proc runTests() =
   if dirExists(slugOut / "posts" / "something-else"):
     fail("`slugify: false` post should keep its file-name slug, not the title slug")
 
+  # --- custom output dir (`--out`) ---
+  let outCustom = slugDir / "nested" / "public" # does not exist yet
+  let buildResOut = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir) &
+    " --out " & quoteShell(outCustom))
+  if buildResOut.exitCode != 0:
+    fail("`stupidgreen build --out` failed: " & buildResOut.output)
+  assertFile(outCustom, "index.html")
+  assertFile(outCustom, "posts/my-awesome-post/index.html")
+  assertFile(outCustom, "feed.xml")
+  assertFile(outCustom, "sitemap.xml")
+  assertContains(outCustom, "index.html", "StupidGreen Blog")
+  assertContains(outCustom, "posts/my-awesome-post/index.html", "Title-derived slug")
+
   echo "OK: all stupidgreen build tests passed"
   quit(0)
 
