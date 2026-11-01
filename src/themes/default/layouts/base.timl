@@ -57,7 +57,6 @@ body:before {
           a href="https://openpeeps.dev": "OpenPeeps"
 
     script src=url("/assets/bootstrap.min.js")
-    script src=url("/assets/highlight.min.js")
     script type="text/javascript" src=url("/assets/app.js")
 
     if $this["config"]["content"]["lazyloadIframes"] or

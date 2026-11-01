@@ -13,7 +13,7 @@ pre code[class*="language-"] {
   padding: 1em;
   background: var(--booyaka-code-bg);
   color: var(--booyaka-code-fg);
-  border: 1px solid var(--booyaka-code-border);
+  /* border: 1px solid var(--booyaka-code-border); */
   border-radius: var(--booyaka-radius-md, 8px);
 }
 
@@ -142,10 +142,68 @@ pre code .code-line::before {
   margin-right: 1.25ch;
   padding-right: 1ch;
   border-right: 1px solid var(--booyaka-code-border);
+  /* the gutter shares the code background: only the divider may show */
+  background: transparent;
   text-align: right;
   color: #777;
   user-select: none;
 }
 pre code .code-line:empty::after {
   content: " ";
+}
+
+/* click-to-copy button (injected by `UI.initCodeCopy` in app.js) */
+pre:has(> code) {
+  position: relative;
+}
+.code-copy-btn {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  padding: 0;
+  background: var(--booyaka-code-bg);
+  color: var(--booyaka-code-fg);
+  border: 1px solid var(--booyaka-code-border);
+  border-radius: 6px;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  z-index: 1;
+}
+.code-copy-btn:hover,
+.code-copy-btn:focus-visible {
+  opacity: 1;
+}
+.code-copy-btn svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+.code-copy-btn.is-copied {
+  opacity: 1;
+  color: #7ee2a8;
+  border-color: #7ee2a8;
+}
+@media print {
+  .code-copy-btn {
+    display: none;
+  }
+
+  /* ink-style code on paper: no dark island, gray tokens */
+  pre code[class*="language-"] {
+    background: transparent !important;
+    color: #000 !important;
+  }
+  pre code .comment, pre code .doc_comment { color: #666 !important; font-style: italic; }
+  pre code .string, pre code .char, pre code .regex, pre code .heredoc { color: #333 !important; }
+  pre code .int, pre code .float, pre code .tkHex, pre code .tkOctal,
+  pre code .tkBinary, pre code .tkBigInt, pre code .tkImag { color: #000 !important; }
+  pre code .ident { color: #000 !important; }
+  pre code .punct { color: #222 !important; }
+  pre code .code-line::before { color: #666 !important; border-right-color: #bbb !important; }
 }

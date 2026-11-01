@@ -155,9 +155,6 @@ type
       ## Whether to automatically format URLs as clickable links in Markdown content
     bottom_navigation*: bool
       ## Whether to enable bottom navigation links (older/newer) on posts
-    codeHighlightTheme*: string = "default"
-      ## The code syntax highlighting theme to use (legacy; highlighting is
-      ## now backend via SweetSyntax, see `sweetsyntax.css`)
     code_line_numbers*: bool
       ## Whether to render line numbers alongside fenced code blocks
       ## (CSS counters, not copied to clipboard) (default: false)
