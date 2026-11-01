@@ -87,11 +87,11 @@ initApp(skipLocalConfig = true):
       embedDirectory("themes/default", "themes/default")
 
       # embed Tabler SVG icons directly into the binary for production
-      embedDirectory("storage/icons", "storage/icons")
+      # embedDirectory("storage/icons", "storage/icons")
 
       # Preload embedded resources into memory (default theme bundle used for
       # seeding `themes/` into projects; icons used by `icon()` in templates)
-      preloadBundle("storage/icons")
+      # preloadBundle("storage/icons")
       preloadBundle("themes/default")
 
   #
