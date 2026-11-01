@@ -222,6 +222,23 @@ type
     per_page*: int = 10
       ## The number of posts per page
 
+  AssetsSettings* = object
+    ## Asset bundling settings (`stupidgreen build` pipes the declared
+    ## files through Squeezy). Only listed files are processed — every
+    ## other file under `assets/` is copied raw as before.
+    bundle*: bool = true
+      ## Whether to bundle assets on `build` (opt-out with `false`)
+    css*: seq[string] = @[]
+      ## Stylesheets to merge, in order, into `assets/bundle.css`
+      ## (relative to the merged `assets/` dir, e.g. `"style.css"`)
+    js*: seq[string] = @[]
+      ## Scripts to bundle, each independently and in place
+      ## (relative to the merged `assets/` dir, e.g. `"app.js"`)
+    mangle*: bool = false
+      ## Whether to mangle JS identifiers (implies minify)
+    sourcemap*: bool = false
+      ## Whether to emit a `.map` file next to each bundled JS file
+
   FeedSettings* = object
     ## Settings for the blog feed
     enable*: bool = true
@@ -294,6 +311,8 @@ type
       ## Content-related settings for StupidGreen
     pagination*: PaginationSettings
       ## Pagination settings for the blog index
+    assets*: AssetsSettings
+      ## Asset bundling settings (Squeezy CSS merge + JS bundling on `build`)
     feed*: FeedSettings
       ## Feed-related settings for StupidGreen
     activitypub*: ActivityPubSettings

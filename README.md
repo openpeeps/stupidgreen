@@ -161,6 +161,37 @@ cp themes/default/layouts/base.timl themes/minimal/layouts/
   `Active theme not found: nope. Available themes: minimal, default`.
 - In development (`start --sync`) theme files hot-reload in the browser.
 
+### Asset pipeline
+On `build`, the stylesheets listed under `assets.css` are merged in
+order into `assets/bundle.css` (minified), and each script under
+`assets.js` is bundled independently, in place (minified) — powered by
+[Squeezy](https://github.com/openpeeps/squeezy). Only listed files are
+processed; everything else under `assets/` (e.g. vendored
+`bootstrap.min.*`) is copied raw. The emitted output is validated, and
+any failure (a listed file missing, a bundling or validation error)
+fails the build.
+
+```yaml
+# stupidgreen.config.yaml
+assets:
+  bundle: true                          # opt out with `false`
+  css: ["style.css", "sweetsyntax.css", "print.css"]  # merged -> bundle.css
+  js: ["app.js"]                        # each bundled in place
+  mangle: false                         # mangle JS identifiers
+  sourcemap: false                      # emit `.map` next to bundled JS
+```
+
+Custom themes link the merged stylesheet and declare their own lists —
+only what you list gets processed:
+
+```timl
+link rel="stylesheet" href=url("/assets/bundle.css")
+```
+
+Existing projects (whose config has no `assets` section) keep the old
+behavior: assets are copied raw. Add the section to opt in. The dev
+server always serves files raw for fast iteration.
+
 ### Post front matter
 
 ```markdown

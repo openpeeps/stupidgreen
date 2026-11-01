@@ -6,9 +6,7 @@ html data-bs-theme="dark" data-lang=$this["currentLang"]
     meta name="description" content=$this["config"]["metadata"]["description"]
     link rel="icon" href=url("/assets/favicon-32x32.png") type="image/x-icon"
     link rel="stylesheet" href=url("/assets/bootstrap.min.css")
-    link rel="stylesheet" href=url("/assets/style.css")
-    link rel="stylesheet" href=url("/assets/sweetsyntax.css")
-    link rel="stylesheet" href=url("/assets/print.css") media="print"
+    link rel="stylesheet" href=url("/assets/bundle.css")
     if $this["config"]["mode"] != "pages":
       if $this["config"]["feed"]["enable"]:
         if $this["config"]["feed"]["kind"] == "atom":

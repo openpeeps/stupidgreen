@@ -198,6 +198,54 @@ proc runTests() =
   assertContains(outCustom, "index.html", "StupidGreen Blog")
   assertContains(outCustom, "posts/my-awesome-post/index.html", "Title-derived slug")
 
+  # --- asset pipeline (Squeezy CSS merge + JS bundling) ---
+  # the default `new` config merges style/sweetsyntax/print CSS into
+  # `assets/bundle.css` and bundles `assets/app.js` in place
+  assertFile(slugOut, "assets/bundle.css")
+  assertFile(slugOut, "assets/app.js")
+  let bundleCss = readFile(slugOut / "assets" / "bundle.css")
+  if "@media print" notin bundleCss:
+    fail("bundle.css should contain the merged print.css (@media print)")
+  var rawCssSize = 0
+  for f in ["style.css", "sweetsyntax.css", "print.css"]:
+    rawCssSize += getFileSize(slugDir / "themes" / "default" / "assets" / f)
+  if getFileSize(slugOut / "assets" / "bundle.css") >= rawCssSize:
+    fail("bundle.css should be smaller than the unmerged sources")
+  assertContains(slugOut, "index.html", "assets/bundle.css")
+  # unlisted vendored files are copied raw, byte-identical ...
+  if readFile(slugOut / "assets" / "bootstrap.min.css") !=
+      readFile(slugDir / "themes" / "default" / "assets" / "bootstrap.min.css"):
+    fail("unlisted bootstrap.min.css must be copied raw, byte-identical")
+  # ... and the merged sources remain as raw copies (old templates keep working)
+  assertFile(slugOut, "assets/style.css")
+
+  # `bundle: false` disables the pipeline entirely
+  writeFile(slugConfig, readFile(slugConfig).replace("bundle: true", "bundle: false"))
+  let noBundleOut = slugDir / "nobuild"
+  let buildResNoBundle = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir) &
+    " --out " & quoteShell(noBundleOut))
+  if buildResNoBundle.exitCode != 0:
+    fail("`stupidgreen build` (bundle: false) failed: " & buildResNoBundle.output)
+  if fileExists(noBundleOut / "assets" / "bundle.css"):
+    fail("bundle: false must not emit assets/bundle.css")
+  assertFile(noBundleOut, "assets/style.css")
+  writeFile(slugConfig, readFile(slugConfig).replace("bundle: false", "bundle: true"))
+
+  # a listed-but-missing asset fails the build
+  writeFile(slugConfig, readFile(slugConfig).replace("js: [\"app.js\"]", "js: [\"missing.js\"]"))
+  let buildResMissing = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir))
+  if buildResMissing.exitCode == 0:
+    fail("`stupidgreen build` (missing asset) should fail")
+  if "missing.js" notin buildResMissing.output:
+    fail("missing asset error should name the file")
+
+  # invalid JS fails the build (output validation gate)
+  writeFile(slugDir / "themes" / "default" / "assets" / "bad.js", "{{{ nope")
+  writeFile(slugConfig, readFile(slugConfig).replace("js: [\"missing.js\"]", "js: [\"bad.js\"]"))
+  let buildResBad = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir))
+  if buildResBad.exitCode == 0:
+    fail("`stupidgreen build` (invalid JS) should fail")
+
   echo "OK: all stupidgreen build tests passed"
   quit(0)
 

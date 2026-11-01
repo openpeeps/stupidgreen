@@ -15,7 +15,7 @@ import pkg/supranim/support/slug
 
 import ./structs
 import pkg/supranim/service/storage
-import ../service/provider/[markdown, tim, search, feed, activitypub, assets]
+import ../service/provider/[markdown, tim, search, feed, activitypub, assets, bundleassets]
 
 const
   tpl = staticRead(storagePath / "stubs" / "template_stupidgreen.config.yaml")
@@ -506,6 +506,13 @@ proc buildCommand*(v: Values) =
   if activeThemeName() != defaultThemeName:
     copyDiskAssets("theme-active")
   copyDiskAssets("project-assets")
+
+  # asset pipeline (Squeezy): merges `assets.css` into `assets/bundle.css`
+  # and bundles each `assets.js` script in place. Old configs without the
+  # `assets` section keep the zero value (`bundle: false`) and skip this,
+  # preserving the raw-copy behavior.
+  if globalStupidGreenConfig.assets.bundle:
+    bundleBuildAssets(outputPath / "assets", globalStupidGreenConfig.assets)
 
   proc configJson(): JsonNode =
     ## Converts the global StupidGreen configuration to a JsonNode
