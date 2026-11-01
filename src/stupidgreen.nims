@@ -15,9 +15,10 @@ elif defined(linux):
 --define:supraFileserver
 --define:supranimUseGlobalOnRequest
 
---define:avx2
---passC:"-mavx2"
---passL:"-mavx2"
+when defined(amd64) or defined(i386):
+  --define:avx2
+  --passC:"-mavx2"
+  --passL:"-mavx2"
 
 --define:supraBundleSkipPrefix
   # When defined, this flag tells Supra (Supranim's CLI) to skip prefixing
