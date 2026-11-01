@@ -46,6 +46,9 @@ const
   themeStubStyle = staticRead(storagePath / "stubs" / "theme" / "assets" / "style.css")
   themeStubSweetSyntaxCss = staticRead(storagePath / "stubs" / "theme" / "assets" / "sweetsyntax.css")
   themeStubSyntaxReadme = staticRead(storagePath / "stubs" / "theme" / "syntax" / "README.md")
+  enPotTemplate = staticRead(storagePath / "en.pot")
+    # English gettext message template, written to `<project>/storage/en.pot`.
+    # Translators copy it to `<lang>.po` next to it and fill in `msgstr`.
 
 proc loadStupidGreen(projectPath: string) =
   ## Loads the StupidGreen configuration from the project directory
@@ -214,6 +217,15 @@ proc copyThemeAssetsToPublic*(projectPath: string) =
     display("Public assets synced from theme \"" & activeThemeName() &
       "\" (" & $copied & " file(s) into assets/)")
 
+proc seedStorageLocale*(projectPath: string) =
+  ## Ensures `<project>/storage/en.pot` exists (the English gettext
+  ## message template translators copy to `<lang>.po`). Only writes
+  ## when missing, so translator files and template edits are kept.
+  let dest = projectPath / "storage" / "en.pot"
+  if not fileExists(dest):
+    createDir(dest.parentDir)
+    writeFile(dest, enPotTemplate)
+
 proc newCommand*(v: Values) =
   ## Create a new StupidGreen project in the specified directory.
   ## With `--pages` the project is a pages-only site: no `posts/`
@@ -241,6 +253,7 @@ proc newCommand*(v: Values) =
   writeFile(dirPath / "pages" / "about.md", samplePage)
   writeFile(dirPath / "pages" / "llms.md", sampleLlms)
   seedDefaultTheme(dirPath)
+  seedStorageLocale(dirPath)
   display("Created a new StupidGreen project in " & dirPath)
   display("Next steps:")
   display("  cd " & dirPath)
@@ -397,6 +410,8 @@ proc runCommand*(v: Values) =
 
   stupidgreenProjectPath = projectPath
   seedDefaultTheme(projectPath)
+  seedStorageLocale(projectPath)
+  tim.loadI18n(projectPath)
   initThemeDisks(projectPath)
   if v.has("--devMode"):
     # theme development: serve theme assets live from `themes/<name>/assets/`
@@ -427,6 +442,8 @@ proc buildCommand*(v: Values) =
   loadStupidGreen(projectPath)
   stupidgreenProjectPath = projectPath
   seedDefaultTheme(projectPath)
+  seedStorageLocale(projectPath)
+  tim.loadI18n(projectPath)
   initThemeDisks(projectPath)
 
   let app = appInstance()

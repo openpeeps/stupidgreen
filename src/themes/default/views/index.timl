@@ -6,7 +6,7 @@ div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
         article.homepage-intro.container-content-area: $this["intro"]
 
     div.row.d-none.mb-4 > div.col-12
-      h1.h3.fw-bold.mb-1: "Latest posts"
+      h1.h3.fw-bold.mb-1: i18n("Latest posts")
       p.mb-0: $this["config"]["metadata"]["description"]
 
     @include "post-cards"

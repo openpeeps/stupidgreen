@@ -17,4 +17,4 @@ if len($this["posts"]) > 0:
             a.link-light.text-decoration-none.fw-medium href=url($post["meta"]["url"]): $this["config"]["content"]["readMoreText"] & " &rarr;"
 else:
   div.card.border-dark.rounded-4 > div.card-body.p-5.text-center
-    p.lead.mb-0: "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"
+    p.lead.mb-0: i18n("No posts yet. Create your first post with `stupidgreen post \"Hello World\"`")

@@ -1,0 +1,207 @@
+# StupidGreen English message template.
+# Copyright (C) 2026 George Lemon
+# This file is distributed under the MIT License.
+# Translators: fill in `msgstr` for your language, save a copy as
+# `<lang>.po` next to this template, and keep `msgid` untouched.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: StupidGreen 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/openpeeps/stupidgreen\n"
+"POT-Creation-Date: 2026-11-01 00:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Header search field (placeholder and accessible label share one string).
+#: src/themes/default/partials/header.timl
+#: src/themes/default/views/search.timl
+msgid "Search the blog..."
+msgstr ""
+
+#. Header search field accessible label.
+#: src/themes/default/partials/header.timl
+#: src/themes/default/views/search.timl
+msgid "Search the blog"
+msgstr ""
+
+#. Accessible label of the language switcher.
+#: src/themes/default/partials/header.timl
+msgid "Language"
+msgstr ""
+
+#. Search page title and submit button.
+#: src/themes/default/views/search.timl
+msgid "Search"
+msgstr ""
+
+#: src/themes/default/views/search.timl
+msgid "Type a query to search the blog. Results are loaded from the local search index."
+msgstr ""
+
+#: src/themes/default/views/search.timl
+msgid "No results yet."
+msgstr ""
+
+#. Blog index heading above the post list.
+#: src/themes/default/views/index.timl
+msgid "Latest posts"
+msgstr ""
+
+#. Empty-state card on the blog index.
+#: src/themes/default/partials/post-cards.timl
+msgid "No posts yet. Create your first post with `stupidgreen post \"Hello World\"`"
+msgstr ""
+
+#. Accessible labels of the pagination arrows.
+#: src/themes/default/partials/pagination.timl
+msgid "Previous"
+msgstr ""
+
+#: src/themes/default/partials/pagination.timl
+msgid "Next"
+msgstr ""
+
+#. {page} is the current page number, {total} the total page count.
+#: src/themes/default/partials/pagination.timl
+msgid "Page {page} of {total}"
+msgstr ""
+
+#. Table of contents card on post pages.
+#: src/themes/default/views/post.timl
+msgid "Table of Contents"
+msgstr ""
+
+#. {author} is the post author's name.
+#: src/themes/default/views/post.timl
+msgid "Published by {author}"
+msgstr ""
+
+#. {minutes} is the estimated reading time.
+#: src/themes/default/views/post.timl
+msgid "{minutes} min read"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Share page"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Share this page"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Open share options"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Toggle Dropdown"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Copy URL"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Copy the URL of this page"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Copy as Markdown"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Copy page content as Markdown"
+msgstr ""
+
+#. Shown briefly after copying the page URL.
+#: src/storage/client/app.js
+msgid "Copied!"
+msgstr ""
+
+#: src/themes/default/views/post.timl
+msgid "Last updated"
+msgstr ""
+
+#. Arrow glyphs decorate these in the theme; translate the words only.
+#: src/themes/default/views/post.timl
+msgid "Older"
+msgstr ""
+
+#. Arrow glyphs decorate these in the theme; translate the words only.
+#: src/themes/default/views/post.timl
+msgid "Newer"
+msgstr ""
+
+#. {tag} is the tag display name.
+#: src/themes/default/views/tag.timl
+msgid "Tag: {tag}"
+msgstr ""
+
+#. {category} is the category display name.
+#: src/themes/default/views/category.timl
+msgid "Category: {category}"
+msgstr ""
+
+#. {count} is the number of posts in the archive.
+#: src/themes/default/views/tag.timl
+#: src/themes/default/views/category.timl
+msgid "{count} post"
+msgid_plural "{count} posts"
+msgstr[0] ""
+msgstr[1] ""
+
+#. 404 fallback page title (also sent by the dev server).
+#: src/controller/pages.nim
+#: src/themes/default/views/errors/4xx.timl
+msgid "Page Not Found"
+msgstr ""
+
+#: src/controller/pages.nim
+#: src/service/provider/tim.nim
+#: src/themes/default/views/errors/4xx.timl
+#: src/themes/default/views/errors/5xx.timl
+msgid "The page you are looking for does not exist."
+msgstr ""
+
+#. Error page link back to the homepage.
+#: src/themes/default/views/errors/4xx.timl
+#: src/themes/default/views/errors/5xx.timl
+msgid "Back to Homepage"
+msgstr ""
+
+#. 500 fallback page title (rendered when a view fails).
+#: src/service/provider/tim.nim
+msgid "Something went wrong"
+msgstr ""
+
+#. Relative time in post metadata, e.g. "just now".
+#: src/storage/client/app.js
+msgid "just now"
+msgstr ""
+
+#. {count} is the elapsed time; singular form (n == 1).
+#: src/storage/client/app.js
+msgid "{count} minute ago"
+msgid_plural "{count} minutes ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#. {count} is the elapsed time; singular form (n == 1).
+#: src/storage/client/app.js
+msgid "{count} hour ago"
+msgid_plural "{count} hours ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#. {count} is the elapsed time; singular form (n == 1).
+#: src/storage/client/app.js
+msgid "{count} day ago"
+msgid_plural "{count} days ago"
+msgstr[0] ""
+msgstr[1] ""

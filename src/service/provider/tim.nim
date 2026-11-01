@@ -4,13 +4,14 @@
 #          Made by Humans from OpenPeeps
 
 import std/[macros, json, strutils, os,
-        httpcore, times, options]
+        httpcore, times, options, tables]
 
 import pkg/supranim/support/slug
 import pkg/supranim/core/[services, paths]
 import pkg/vancode/interpreter/value
 import pkg/[tim, iconim, kapsis/framework]
 import pkg/openparser/json
+import pkg/openparser/gettext/po
 
 import pkg/kapsis/interactive/prompts
 
@@ -63,6 +64,131 @@ initService Tim[Global]:
           return timBaseUrl & p
       result = timBaseUrl & "/" & cur & p
 
+    var timI18nCatalogs*: Table[string, PoCompiledCatalog]
+      ## Compiled gettext catalogs per language code (`en` from
+      ## `storage/en.pot`, others from `storage/<lang>.po`). Read-only
+      ## after `loadI18n`, so concurrent renders share them safely.
+
+    proc loadI18n*(projectPath: string) =
+      ## Loads gettext catalogs from `<project>/storage` into memory:
+      ## `en.pot` as the English source catalog and every `<lang>.po`
+      ## as its translation. Missing or invalid files are skipped with
+      ## a warning; lookups then fall back to `msgid`.
+      timI18nCatalogs = initTable[string, PoCompiledCatalog]()
+      proc loadFile(lang, path: string) =
+        try:
+          let cat = openPoCatalog(path)
+          timI18nCatalogs[lang] = compilePo(cat)
+          close(cat)
+        except PoParseError as e:
+          displayWarning("Skipping invalid gettext file `" & path & "`: " & e.msg)
+        except IOError as e:
+          displayWarning("Skipping unreadable gettext file `" & path & "`: " & e.msg)
+      let storageDir = projectPath / "storage"
+      let pot = storageDir / "en.pot"
+      if fileExists(pot):
+        loadFile("en", pot)
+      if dirExists(storageDir):
+        for kind, path in walkDir(storageDir):
+          if kind == pcFile and path.endsWith(".po"):
+            let code = extractFilename(path)[0 .. ^4].strip().toLowerAscii()
+            if code.len > 0 and code notin timI18nCatalogs:
+              loadFile(code, path)
+
+    proc i18nTranslate*(msgid: string): string =
+      ## Returns the `msgid` translation for the current render language
+      ## (`timRenderLang`), falling back through the default language to
+      ## English and finally to `msgid` itself. Empty `msgstr` entries
+      ## (as in `en.pot`) also fall back to `msgid`, since English is
+      ## the source language.
+      let cur = timRenderLang
+      if cur.len > 0 and timI18nCatalogs.hasKey(cur):
+        return translate(timI18nCatalogs[cur], msgid)
+      let defLang = globalStupidGreenConfig.defaultLangCode()
+      if defLang != cur and timI18nCatalogs.hasKey(defLang):
+        return translate(timI18nCatalogs[defLang], msgid)
+      if timI18nCatalogs.hasKey("en"):
+        return translate(timI18nCatalogs["en"], msgid)
+      msgid
+
+    proc i18nNTranslate*(singular, plural: string, n: int): string =
+      ## Plural-aware `i18nTranslate`: selects the catalog form with the
+      ## header's plural expression, falling back like the singular one.
+      let cur = timRenderLang
+      if cur.len > 0 and timI18nCatalogs.hasKey(cur):
+        return ntranslate(timI18nCatalogs[cur], singular, plural, n)
+      let defLang = globalStupidGreenConfig.defaultLangCode()
+      if defLang != cur and timI18nCatalogs.hasKey(defLang):
+        return ntranslate(timI18nCatalogs[defLang], singular, plural, n)
+      if timI18nCatalogs.hasKey("en"):
+        return ntranslate(timI18nCatalogs["en"], singular, plural, n)
+      (if n == 1: singular else: plural)
+
+    proc timArgToStr(v: value.Value): string =
+      ## Stringifies a Tim foreign-proc argument for `{placeholder}`
+      ## substitution. Non-scalar values (objects, arrays, procs, nil)
+      ## contribute an empty string.
+      if v.isNil:
+        return ""
+      case v.typeId
+      of tyString:
+        v.stringVal[]
+      of tyInt:
+        $v.intVal
+      of tyFloat:
+        $v.floatVal
+      of tyBool:
+        $v.boolVal
+      of tyJsonStorage:
+        let j = v.jsonVal
+        if j.isNil:
+          return ""
+        case j.kind
+        of JString: j.getStr()
+        of JInt: $j.getInt()
+        of JFloat: $j.getFloat()
+        of JBool: $j.getBool()
+        of JNull: ""
+        else: $j
+      else:
+        ""
+
+    proc timVarsToJson(v: value.Value): JsonNode =
+      ## Converts an `i18n()` vars argument to a JSON object: either a
+      ## Tim object literal (`{page: ...}`) or a `JsonNode` (e.g. `$this`).
+      result = newJObject()
+      if v.isNil:
+        return
+      if v.typeId == tyJsonStorage:
+        if not v.jsonVal.isNil and v.jsonVal.kind == JObject:
+          for k, val in v.jsonVal.pairs:
+            result[k] = val
+        return
+      if v.typeId != tyObjectStorage:
+        return
+      let o = v.objectVal
+      if o.isNil or o.isForeign:
+        return
+      for i in 0 ..< min(o.keys.len, o.fields.len):
+        result[o.keys[i]] = %timArgToStr(toValue(o.fields[i]))
+
+    proc i18nApplyVars*(s: string, vars: JsonNode): string =
+      ## Replaces `{name}` placeholders in `s` with the matching `vars`
+      ## entries. Unknown placeholders are left untouched.
+      result = s
+      if vars.isNil or vars.kind != JObject:
+        return
+      for k, val in vars.pairs:
+        let valStr =
+          case val.kind
+          of JString: val.getStr()
+          of JInt: $val.getInt()
+          of JFloat: $val.getFloat()
+          of JBool: $val.getBool()
+          of JNull: ""
+          else: $val
+        result = result.replace("{" & k & "}", valStr)
+
     Icon.init(
       source = storagePath / "icons",
       default = "filled",
@@ -108,6 +234,27 @@ initService Tim[Global]:
           if not v.isNil:
             p = if v.kind == JString: v.getStr() else: $v
           return initValue(siteUrl(p))
+      )
+
+      timInstance.userScript.addProc("i18n", @[paramDef("msgid", ttyString)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nTranslate(args[0].stringVal[]))
+      )
+      timInstance.userScript.addProc("i18n", @[paramDef("msgid", ttyString), paramDef("vars", ttyObject)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nApplyVars(i18nTranslate(args[0].stringVal[]), timVarsToJson(args[1])))
+      )
+      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], int(args[2].intVal)))
+      )
+      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          let n = int(args[2].intVal)
+          var vars = timVarsToJson(args[3])
+          if not vars.hasKey("count"):
+            vars["count"] = %n
+          return initValue(i18nApplyVars(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], n), vars))
       )
 
       timBaseUrl = "" # dev serves root-relative paths itself
@@ -167,6 +314,26 @@ initService Tim[Global]:
           if not v.isNil:
             p = if v.kind == JString: v.getStr() else: $v
           return initValue(siteUrl(p))
+      )
+      timInstance.userScript.addProc("i18n", @[paramDef("msgid", ttyString)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nTranslate(args[0].stringVal[]))
+      )
+      timInstance.userScript.addProc("i18n", @[paramDef("msgid", ttyString), paramDef("vars", ttyObject)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nApplyVars(i18nTranslate(args[0].stringVal[]), timVarsToJson(args[1])))
+      )
+      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          return initValue(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], int(args[2].intVal)))
+      )
+      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
+        proc (args: StackView, argc: int): value.Value =
+          let n = int(args[2].intVal)
+          var vars = timVarsToJson(args[3])
+          if not vars.hasKey("count"):
+            vars["count"] = %n
+          return initValue(i18nApplyVars(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], n), vars))
       )
       timBaseUrl = globalStupidGreenConfig.metadata.url
       timInstance.precompile()
