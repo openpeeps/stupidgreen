@@ -8,7 +8,7 @@
 ## RSS and Atom feeds are generated using the `openparser` RSS and Atom
 ## modules, while the sitemap is generated as raw XML.
 
-import std/[times, strutils, algorithm, options]
+import std/[times, strutils, algorithm, options, tables, sequtils]
 
 import pkg/openparser/[rss, feed]
 
@@ -139,40 +139,80 @@ proc feedXml*(posts: seq[Post], config: StupidGreenConfig, baseUrl: string): str
     result = rssFeed(posts, config, baseUrl)
 
 proc sitemapXml*(posts, pages: seq[Post], config: StupidGreenConfig, baseUrl: string): string =
-  ## Generate a sitemap.xml string from the given posts, pages and configuration
+  ## Generate a sitemap.xml string from the given posts, pages and configuration.
+  ## With the languages feature enabled every translation is listed with
+  ## `hreflang` alternates, plus per-language tag/category archives.
+  let enabled = config.languagesEnabled()
+  let defLang = config.defaultLangCode()
   result.add("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
-  result.add("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">")
+  result.add("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"" &
+    " xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">")
 
-  # homepage
-  result.add("<url><loc>" & escapeXml(baseUrl & "/") & "</loc></url>")
+  proc docLang(post: Post): string =
+    ## Effective language key: "" for default-language content so it
+    ## keeps unprefixed archive URLs.
+    if enabled and post.meta.lang.len > 0 and post.meta.lang != defLang:
+      post.meta.lang
+    else:
+      ""
 
-  var urlEntries: seq[tuple[loc, lastmod: string]] = @[]
+  proc alternates(translations: Table[string, string]): string =
+    ## `xhtml:link` alternates, sorted by lang for stable output.
+    if not enabled or translations.len == 0:
+      return ""
+    var langs = toSeq(keys(translations))
+    langs.sort()
+    for lang in langs:
+      result.add("<xhtml:link rel=\"alternate\" hreflang=\"" & lang &
+        "\" href=\"" & escapeXml(baseUrl & translations[lang]) & "\"/>")
+
+  proc addUrl(loc, lastmod: string, translations: Table[string, string]) =
+    result.add("<url><loc>" & escapeXml(loc) & "</loc>")
+    if lastmod.len > 0:
+      result.add("<lastmod>" & lastmod & "</lastmod>")
+    result.add(alternates(translations))
+    result.add("</url>")
+
+  # homepage (alternates point at translated homepages, when any)
+  var homeTranslations = initTable[string, string]()
+  for page in pages:
+    if page.meta.url == "/" and not page.meta.draft:
+      homeTranslations = page.meta.translations
+      break
+  addUrl(baseUrl & "/", "", homeTranslations)
+
   for post in publishedPosts(posts):
-    urlEntries.add((baseUrl & post.meta.url, rfc2822(postDate(post))))
+    addUrl(baseUrl & post.meta.url, rfc2822(postDate(post)), post.meta.translations)
 
-  # standalone pages (the homepage entry is already added above)
+  # standalone pages (the homepage entry is already added above;
+  # translated homepages like `/ro` are listed here with alternates)
   for page in pages:
     if page.meta.draft or page.meta.url == "/":
       continue
-    urlEntries.add((baseUrl & page.meta.url, ""))
+    addUrl(baseUrl & page.meta.url, "", page.meta.translations)
 
-  # collect tag/category archive URLs
-  var tags: seq[string] = @[]
-  var categories: seq[string] = @[]
+  # collect tag/category archive URLs, grouped by language
+  var tagsByLang = initTable[string, seq[string]]()
+  var catsByLang = initTable[string, seq[string]]()
   for post in publishedPosts(posts):
+    let lang = docLang(post)
     for tag in post.meta.tags:
-      if tag.slug notin tags: tags.add(tag.slug)
+      if tag.slug notin tagsByLang.mgetOrPut(lang, @[]):
+        tagsByLang[lang].add(tag.slug)
     for cat in post.meta.categories:
-      if cat.slug notin categories: categories.add(cat.slug)
-  for tag in tags:
-    urlEntries.add((baseUrl & "/tags/" & tag, ""))
-  for cat in categories:
-    urlEntries.add((baseUrl & "/categories/" & cat, ""))
-
-  for entry in urlEntries:
-    result.add("<url><loc>" & escapeXml(entry.loc) & "</loc>")
-    if entry.lastmod.len > 0:
-      result.add("<lastmod>" & entry.lastmod & "</lastmod>")
-    result.add("</url>")
+      if cat.slug notin catsByLang.mgetOrPut(lang, @[]):
+        catsByLang[lang].add(cat.slug)
+  for lang, tags in tagsByLang:
+    for tag in tags:
+      let loc =
+        if lang.len == 0: baseUrl & "/tags/" & tag
+        else: baseUrl & "/" & lang & "/tags/" & tag
+      addUrl(loc, "", initTable[string, string]())
+  for lang, cats in catsByLang:
+    for cat in cats:
+      let loc =
+        if lang.len == 0: baseUrl & "/categories/" & cat
+        else: baseUrl & "/" & lang & "/categories/" & cat
+      addUrl(loc, "", initTable[string, string]())
 
   result.add("</urlset>")

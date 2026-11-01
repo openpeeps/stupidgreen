@@ -252,6 +252,20 @@ proc postCommand*(v: Values) =
   let title = $(v.get("title").getStr)
   let slug = title.slugify()
   let today = now().format("yyyy-MM-dd")
+  var langSuffix = ""
+  if v.has("--lang"):
+    let code = ($(v.get("--lang").getStr)).strip().toLowerAscii()
+    var valid = code.len in 2..8
+    if valid:
+      for c in code:
+        if c notin {'a'..'z', '0'..'9', '-'}:
+          valid = false
+          break
+    if not valid:
+      displayError("Invalid language code \"" & code &
+        "\": use 2-8 lowercase letters, digits or dashes (e.g. `ro`).",
+        quitProcess = true)
+    langSuffix = "." & code
   # in pages mode blog posts are disabled — check the project config
   # before the `posts/` directory, which pages-only projects don't have
   let configPath = getCurrentDir() / "stupidgreen.config"
@@ -261,10 +275,13 @@ proc postCommand*(v: Values) =
     if globalStupidGreenConfig.mode == modePages:
       displayError("This project uses pages mode: blog posts are disabled.",
         quitProcess = true)
+    if langSuffix.len > 0 and not globalStupidGreenConfig.languagesEnabled():
+      displayWarning("The `languages` feature is disabled: `" & slug &
+        langSuffix & ".md` will be treated as a regular post until enabled.")
   let postsDir = getCurrentDir() / "posts"
   if not dirExists(postsDir):
     displayError("No StupidGreen project found in the current directory. Run `stupidgreen new <directory>` first.", quitProcess = true)
-  let fpath = postsDir / (slug & ".md")
+  let fpath = postsDir / (slug & langSuffix & ".md")
   if fileExists(fpath):
     displayError("A post with this title already exists: " & fpath, quitProcess = true)
   let postContent =
@@ -522,6 +539,30 @@ proc buildCommand*(v: Values) =
       displayWarning("Unknown layout \"" & post.meta.layout &
         "\" for " & post.meta.url & ", using \"" & defaultView & "\"")
 
+  proc extraLangs(): seq[string] =
+    ## Non-default supported languages (empty when the feature is disabled).
+    if not globalStupidGreenConfig.languagesEnabled():
+      return @[]
+    let defLang = globalStupidGreenConfig.defaultLangCode()
+    for l in globalStupidGreenConfig.supportedLangCodes():
+      if l != defLang and l notin result:
+        result.add(l)
+
+  proc buildIntro(lang: string): string =
+    ## Homepage intro for `lang` (translated intro with fallback
+    ## to the default intro, mirroring the dev server).
+    if lang.len > 0:
+      let lurl = "/" & lang
+      if gMarkdownService.pages.hasKey(lurl):
+        return renderHtml(gMarkdownService.pages[lurl])
+      if gMarkdownService.posts.hasKey(lurl):
+        return renderHtml(gMarkdownService.posts[lurl])
+    if gMarkdownService.pages.hasKey("/"):
+      return renderHtml(gMarkdownService.pages["/"])
+    elif gMarkdownService.posts.hasKey("/"):
+      return renderHtml(gMarkdownService.posts["/"])
+    ""
+
   if pagesMode:
     # pages-only site: `/` renders `pages/index.md` through its layout
     # view, every other page through its own layout view. The blogging
@@ -537,7 +578,23 @@ proc buildCommand*(v: Values) =
     var homeLocal = newJObject()
     homeLocal["config"] = configJson()
     homeLocal["page"] = postJsonRendered(home)
+    homeLocal["currentLang"] = %(pubLang(home.meta.lang))
+    homeLocal["siteLangs"] = %(pubLangs())
+    homeLocal["translations"] = translationsArray(home.meta.translations)
     writeRouteHtml(pageView(home, "page"), "/", homeLocal)
+    # translated homepages (`/<lang>`, 404 when missing at serve time)
+    for lang in extraLangs():
+      let lurl = "/" & lang
+      if gMarkdownService.pages.hasKey(lurl) and
+          not gMarkdownService.pages[lurl].meta.draft:
+        let lhome = gMarkdownService.pages[lurl]
+        var lhomeLocal = newJObject()
+        lhomeLocal["config"] = configJson()
+        lhomeLocal["page"] = postJsonRendered(lhome)
+        lhomeLocal["currentLang"] = %(pubLang(lang))
+        lhomeLocal["siteLangs"] = %(pubLangs())
+        lhomeLocal["translations"] = translationsArray(lhome.meta.translations)
+        writeRouteHtml(pageView(lhome, "page"), lurl, lhomeLocal)
 
     for url, page in gMarkdownService.pages:
       if page.meta.draft or url == "/":
@@ -545,45 +602,56 @@ proc buildCommand*(v: Values) =
       var local = newJObject()
       local["config"] = configJson()
       local["page"] = postJsonRendered(page)
+      local["currentLang"] = %(pubLang(page.meta.lang))
+      local["siteLangs"] = %(pubLangs())
+      local["translations"] = translationsArray(page.meta.translations)
       writeRouteHtml(pageView(page, "page"), url, local)
   else:
-    let
-      perPage = globalStupidGreenConfig.pagination.per_page
-      sortedPosts = gMarkdownService.sorted
-      totalPages = max(1, (sortedPosts.len + perPage - 1) div perPage)
-      intro =
-        (if gMarkdownService.pages.hasKey("/"): renderHtml(gMarkdownService.pages["/"])
-        elif gMarkdownService.posts.hasKey("/"): renderHtml(gMarkdownService.posts["/"])
-        else: "")
+    let perPage = globalStupidGreenConfig.pagination.per_page
 
-    proc indexPageUrl(n: int): string =
-      ## Returns the URL of a blog index page
-      if n == 1: "/" else: "/page/" & $n
+    # blog index + paginated index per language (homepage renders
+    # index.timl with the intro and the list of posts for that lang)
+    for lang in @[""] & extraLangs():
+      let
+        sortedPosts =
+          if lang.len == 0: gMarkdownService.sorted
+          else: gMarkdownService.sortedByLang.getOrDefault(lang, @[])
+        totalPages = max(1, (sortedPosts.len + perPage - 1) div perPage)
+        intro = buildIntro(lang)
 
-    # blog index + paginated index (homepage renders index.timl with the intro
-    # from `pages/index.md`/`posts/index.md` and the list of posts)
-    for pageNum in 1 .. totalPages:
-      var pagePosts: seq[Post] = @[]
-      let startIdx = (pageNum - 1) * perPage
-      for i in startIdx ..< min(startIdx + perPage, sortedPosts.len):
-        pagePosts.add(sortedPosts[i])
-      var local = newJObject()
-      local["config"] = configJson()
-      local["posts"] = postsJson(pagePosts)
-      local["page"] = %(pageNum)
-      local["totalPages"] = %(totalPages)
-      local["prevUrl"] = %((if pageNum > 1: indexPageUrl(pageNum - 1) else: ""))
-      local["nextUrl"] = %((if pageNum < totalPages: "/page/" & $(pageNum + 1) else: ""))
-      local["intro"] = %(intro)
-      writeRouteHtml("index", indexPageUrl(pageNum), local)
+      proc indexPageUrl(lang: string; n: int): string =
+        ## Returns the URL of a blog index page (language-prefixed)
+        prefixUrl(lang, if n == 1: "/" else: "/page/" & $n)
 
-    # individual posts
+      for pageNum in 1 .. totalPages:
+        var pagePosts: seq[Post] = @[]
+        let startIdx = (pageNum - 1) * perPage
+        for i in startIdx ..< min(startIdx + perPage, sortedPosts.len):
+          pagePosts.add(sortedPosts[i])
+        var local = newJObject()
+        local["config"] = configJson()
+        local["posts"] = postsJson(pagePosts)
+        local["page"] = %(pageNum)
+        local["totalPages"] = %(totalPages)
+        local["prevUrl"] = %((if pageNum > 1: indexPageUrl(lang, pageNum - 1) else: ""))
+        local["nextUrl"] = %((if pageNum < totalPages: indexPageUrl(lang, pageNum + 1) else: ""))
+        local["intro"] = %(intro)
+        local["currentLang"] = %(pubLang(lang))
+        local["siteLangs"] = %(pubLangs())
+        local["translations"] = siteTranslations(
+          proc(l: string): string = indexPageUrl(l, pageNum))
+        writeRouteHtml("index", indexPageUrl(lang, pageNum), local)
+
+    # individual posts (each translation carries its own prefixed URL)
     for url, post in gMarkdownService.posts:
-      if url == "/" or post.meta.draft:
+      if post.meta.draft or post.meta.slug == "/":
         continue
       var local = newJObject()
       local["config"] = configJson()
       local["post"] = postJsonRendered(post)
+      local["currentLang"] = %(pubLang(post.meta.lang))
+      local["siteLangs"] = %(pubLangs())
+      local["translations"] = translationsArray(post.meta.translations)
       writeRouteHtml(pageView(post, "post"), url, local)
 
     # standalone pages (the homepage at `/` is the blog index, rendered above)
@@ -593,25 +661,64 @@ proc buildCommand*(v: Values) =
       var local = newJObject()
       local["config"] = configJson()
       local["page"] = postJsonRendered(page)
+      local["currentLang"] = %(pubLang(page.meta.lang))
+      local["siteLangs"] = %(pubLangs())
+      local["translations"] = translationsArray(page.meta.translations)
       writeRouteHtml(pageView(page, "page"), url, local)
 
-    # tag archives
+    # tag archives (default + per-language)
     for tagSlug, tagPosts in gMarkdownService.byTag:
       var local = newJObject()
       local["config"] = configJson()
       local["posts"] = postsJson(tagPosts)
       local["tag"] = %(gMarkdownService.tagNames.getOrDefault(tagSlug, tagSlug))
       local["tagSlug"] = %(tagSlug)
+      local["currentLang"] = %(pubLang(""))
+      local["siteLangs"] = %(pubLangs())
+      local["translations"] = siteTranslations(
+        proc(l: string): string = prefixUrl(l, "/tags/" & tagSlug))
       writeRouteHtml("tag", "/tags/" & tagSlug, local)
+    for lang in extraLangs():
+      for tagSlug, tagPosts in gMarkdownService.byTagByLang.getOrDefault(
+          lang, newTable[string, seq[Post]]()):
+        var local = newJObject()
+        local["config"] = configJson()
+        local["posts"] = postsJson(tagPosts)
+        local["tag"] = %(gMarkdownService.tagNamesByLang.getOrDefault(
+          lang, newTable[string, string]()).getOrDefault(tagSlug, tagSlug))
+        local["tagSlug"] = %(tagSlug)
+        local["currentLang"] = %(pubLang(lang))
+        local["siteLangs"] = %(pubLangs())
+        local["translations"] = siteTranslations(
+          proc(l: string): string = prefixUrl(l, "/tags/" & tagSlug))
+        writeRouteHtml("tag", "/" & lang & "/tags/" & tagSlug, local)
 
-    # category archives
+    # category archives (default + per-language)
     for catSlug, catPosts in gMarkdownService.byCategory:
       var local = newJObject()
       local["config"] = configJson()
       local["posts"] = postsJson(catPosts)
       local["category"] = %(gMarkdownService.categoryNames.getOrDefault(catSlug, catSlug))
       local["categorySlug"] = %(catSlug)
+      local["currentLang"] = %(pubLang(""))
+      local["siteLangs"] = %(pubLangs())
+      local["translations"] = siteTranslations(
+        proc(l: string): string = prefixUrl(l, "/categories/" & catSlug))
       writeRouteHtml("category", "/categories/" & catSlug, local)
+    for lang in extraLangs():
+      for catSlug, catPosts in gMarkdownService.byCategoryByLang.getOrDefault(
+          lang, newTable[string, seq[Post]]()):
+        var local = newJObject()
+        local["config"] = configJson()
+        local["posts"] = postsJson(catPosts)
+        local["category"] = %(gMarkdownService.categoryNamesByLang.getOrDefault(
+          lang, newTable[string, string]()).getOrDefault(catSlug, catSlug))
+        local["categorySlug"] = %(catSlug)
+        local["currentLang"] = %(pubLang(lang))
+        local["siteLangs"] = %(pubLangs())
+        local["translations"] = siteTranslations(
+          proc(l: string): string = prefixUrl(l, "/categories/" & catSlug))
+        writeRouteHtml("category", "/" & lang & "/categories/" & catSlug, local)
 
   # search results
   let searchEntries = spotlight().getEntries()
@@ -620,6 +727,7 @@ proc buildCommand*(v: Values) =
     var je = newJObject()
     je["url"] = %(entry.url)
     je["title"] = %(entry.title)
+    je["lang"] = %(entry.lang)
     if entry.description.isSome:
       je["description"] = %(entry.description.get)
     if entry.headings.isSome:
@@ -632,21 +740,33 @@ proc buildCommand*(v: Values) =
   results["results"] = resultsArray
   writeFile(outputPath / "results.json", $results)
 
-  # feed + sitemap (no feed in pages mode: the blogging system is disabled)
+  # feed + sitemap (no feed in pages mode: the blogging system is disabled).
+  # Feeds stay on their own language: the default feed excludes translations.
   let allPosts = toSeq(gMarkdownService.posts.values)
   let allPages = toSeq(gMarkdownService.pages.values)
+  let defLang = globalStupidGreenConfig.defaultLangCode()
   if pagesMode:
     writeFile(outputPath / "sitemap.xml",
       sitemapXml(newSeq[Post](), allPages, globalStupidGreenConfig, baseUrl()))
   else:
     if globalStupidGreenConfig.feed.enable:
-      writeFile(outputPath / "feed.xml", feedXml(allPosts, globalStupidGreenConfig, baseUrl()))
+      writeFile(outputPath / "feed.xml", feedXml(allPosts.filterIt(
+        it.meta.lang.len == 0 or it.meta.lang == defLang),
+        globalStupidGreenConfig, baseUrl()))
+      for lang in extraLangs():
+        writeFile(outputPath / lang / "feed.xml", feedXml(allPosts.filterIt(
+          it.meta.lang == lang), globalStupidGreenConfig, baseUrl()))
     writeFile(outputPath / "sitemap.xml", sitemapXml(allPosts, allPages, globalStupidGreenConfig, baseUrl()))
 
-  # llms.txt (from the project's pages/llms.md)
+  # llms.txt (from the project's pages/llms.md, plus per-language
+  # translations when they exist)
   let llms = llmsTxtContent(installPath / "pages")
   if llms.len > 0:
     writeFile(outputPath / "llms.txt", llms)
+  for lang in extraLangs():
+    let lcontent = llmsTxtContent(installPath / "pages", lang)
+    if lcontent.len > 0:
+      writeFile(outputPath / lang / "llms.txt", lcontent)
 
   display("Build complete: " & outputPath)
   quit(0)

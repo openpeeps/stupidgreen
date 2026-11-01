@@ -18,3 +18,13 @@ div.navbar-container-area.sticky-top.user-select-none
             for $navItem in items($this["config"]["navbar"]):
               li.nav-item.mx-1
                 a.nav-link.fw-medium href=$navItem["url"]: $navItem["title"]
+        if $this["currentLang"] != "":
+          if len($this["translations"]) > 1:
+            ul.navbar-nav.ms-auto.mb-2.mb-lg-0.language-switcher
+              for $tr in items($this["translations"]):
+                if $tr["lang"] != $this["currentLang"]:
+                  li.nav-item.mx-1
+                    a.nav-link.text-muted href=$tr["url"]: $tr["lang"]
+                else:
+                  li.nav-item.mx-1
+                    span.nav-link.fw-bold.active: $tr["lang"]

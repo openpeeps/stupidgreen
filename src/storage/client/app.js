@@ -209,7 +209,9 @@ export default {
 
       // Example search function
       function searchDocs(query) {
-        const results = fuse.search(query);
+        const pageLang = document.documentElement.dataset.lang || "";
+        const results = fuse.search(query).filter(r =>
+          !pageLang || (r.item.lang || "") === pageLang);
         // results is an array of objects: { item, refIndex, ... }
         spotlightInner.innerHTML = '';
         if(results.length === 0) {

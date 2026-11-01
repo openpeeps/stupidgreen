@@ -1,4 +1,4 @@
-html data-bs-theme="dark"
+html data-bs-theme="dark" data-lang=$this["currentLang"]
   head
     meta charset="utf-8"
     title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
@@ -16,6 +16,9 @@ html data-bs-theme="dark"
         else:
           link rel="alternate" type="application/rss+xml" title="RSS Feed" href=url("/feed.xml")
     link rel="alternate" type="text/plain" title="llms.txt" href=url("/llms.txt")
+    if $this["currentLang"] != "":
+      for $tr in items($this["translations"]):
+        link rel="alternate" hreflang=$tr["lang"] href=url($tr["url"])
 
     const bgNoise = toFloat($this["config"]["appearance"]["background_noise_opacity"])
     if $bgNoise > 0:

@@ -3,7 +3,7 @@
 # (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 
-import std/[options, strutils]
+import std/[options, strutils, tables]
 import pkg/openparser/html
 
 type
@@ -84,6 +84,13 @@ type
     filePath*: string
       ## The absolute path of the source markdown file, used to map file
       ## events back to the post URL when slugs are derived from the title
+    lang*: string = ""
+      ## The content language of this document (e.g. `"en"`, `"ro"`).
+      ## Empty means the site's default language.
+    translations*: Table[string, string]
+      ## Available translations of this document: language code -> URL.
+      ## Includes this document's own language. Empty when the
+      ## `languages` feature is disabled.
 
   Tag* = object
     ## A tag or category associated with a post
@@ -238,6 +245,20 @@ type
     icon*: string = ""
       ## Optional avatar URL for the blog actor
 
+  LanguageSettings* = object
+    ## Multilingual content settings. Opt-in: translations are only
+    ## scanned, routed and built when `enable` is true. Translated
+    ## files use a lang suffix (`hello-world.ro.md`); the default
+    ## language keeps bare file names (`hello-world.md`) and
+    ## unprefixed URLs, other languages live under `/<lang>/...`.
+    enable*: bool = false
+      ## Whether multilingual support is active (default: false)
+    default*: string = "en"
+      ## The default content language (bare file names, unprefixed URLs)
+    supported*: seq[string] = @["en"]
+      ## All supported language codes, including the default.
+      ## Files with any other suffix are skipped with a warning.
+
   ServerSettings* = object
     ## Supranim server settings for `stupidgreen run`. Projects created
     ## before this section existed fall back to these defaults.
@@ -277,10 +298,69 @@ type
       ## Feed-related settings for StupidGreen
     activitypub*: ActivityPubSettings
       ## ActivityPub federated mode settings
+    languages*: LanguageSettings
+      ## Multilingual content settings (opt-in, disabled by default)
     navbar*: Option[seq[StupidGreenNavItem]]
       ## Top navigation bar configuration
     footer*: StupidGreenFooter
       ## Footer configuration
+
+proc languagesEnabled*(config: StupidGreenConfig): bool =
+  ## Whether multilingual support is active (opt-in via
+  ## `languages.enable` in the site config).
+  config.languages.enable
+
+proc defaultLangCode*(config: StupidGreenConfig): string =
+  ## The default content language code, `"en"` when unset.
+  let d = config.languages.default.strip().toLowerAscii()
+  if d.len > 0: d else: "en"
+
+proc supportedLangCodes*(config: StupidGreenConfig): seq[string] =
+  ## Supported language codes (lowercased, deduplicated),
+  ## falling back to the default language when unset.
+  result = @[]
+  for l in config.languages.supported:
+    let c = l.strip().toLowerAscii()
+    if c.len > 0 and c notin result:
+      result.add(c)
+  if result.len == 0:
+    result.add(config.defaultLangCode())
+
+proc splitLangSuffixRaw*(relNoExt: string; enabled: bool;
+                         defaultCode: string;
+                         supported: seq[string]): (string, string, bool) =
+  ## Pure core of language-suffix parsing: splits a `.md`-less relative
+  ## path into (base, lang, ok). Disabled feature -> (relNoExt, "", true).
+  ## Enabled: trailing `.<code>` in `supported` -> (stem, code, true);
+  ## a trailing 2-3 letter code that is *not* supported -> ("", "", false);
+  ## anything else is default-language content under its full name.
+  if not enabled:
+    return (relNoExt, "", true)
+  let dot = relNoExt.rfind('.')
+  if dot <= 0:
+    return (relNoExt, defaultCode, true)
+  let code = relNoExt[dot + 1 .. ^1].toLowerAscii()
+  if code in supported:
+    return (relNoExt[0 ..< dot], code, true)
+  if code.len in 2..3 and '/' notin code:
+    var alpha = true
+    for c in code:
+      if c notin {'a'..'z'}:
+        alpha = false
+        break
+    if alpha:
+      return ("", "", false)
+  (relNoExt, defaultCode, true)
+
+proc prefixUrlFor*(lang, url: string; enabled: bool;
+                   defaultCode: string): string =
+  ## Pure core of language URL prefixing: `/about` -> `/ro/about`,
+  ## `/` -> `/ro`. Default-language and empty-lang URLs pass through.
+  if not enabled or lang.len == 0 or lang == defaultCode:
+    return url
+  if url == "/":
+    return "/" & lang
+  "/" & lang & url
 
 var
   enableBrowserSync* = true

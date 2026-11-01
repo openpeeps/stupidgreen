@@ -20,6 +20,9 @@ initService Spotlight[Singleton]:
           ## URL of the entry
         title*: string
           ## Title of the entry
+        lang*: string = ""
+          ## Content language of the entry ("" when the
+          ## languages feature is disabled)
         description*: Option[string]
           ## Short description of the entry
         headings*: Option[seq[string]]
@@ -48,14 +51,16 @@ initService Spotlight[Singleton]:
 
     proc addEntry*(spotlight: SpotlightInstance, key, url, title: string,
                     description: Option[string] = none(string),
-                    headings: Option[seq[string]] = none(seq[string])) =
+                    headings: Option[seq[string]] = none(seq[string]),
+                    lang: string = "") =
       ## Add a new entry to the Spotlight search index
       if spotlight.index.contains(key):
         return # entry already exists
       spotlight.index[key] = spotlight.entries.len
       spotlight.entries.add(Entry(url: url, title: title,
               description: description,
-              headings: headings))
+              headings: headings,
+              lang: lang))
 
     proc getEntries*(spotlight: SpotlightInstance): seq[Entry] =
       ## Retrieve all entries in the Spotlight search index

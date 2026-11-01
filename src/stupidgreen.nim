@@ -34,8 +34,9 @@ initApp(skipLocalConfig = true):
       ## Create a new SG project (`--pages` scaffolds a pages-only
       ## site without the blogging system)
 
-    post string(title):
+    post string(title), ?string("--lang"):
       ## Create a new blog post in the current project
+      ## (`--lang ro` writes `title.ro.md` for the languages feature)
 
     theme string(name):
       ## Create a new blank SG theme in ./<name>

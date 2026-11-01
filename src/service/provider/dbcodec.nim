@@ -28,7 +28,7 @@ export fbe.Buffer, fbe.initBuffer
 const
   DbMagic* = "STUPIDGREEN1"
     ## File signature written at the start of every `.db` file
-  DbCodecVersion*: uint32 = 1
+  DbCodecVersion*: uint32 = 2
     ## Version of the codec layout below. Bump when field ids or the
     ## envelope format change in an incompatible way.
   StupidGreenDbVersion* = "0.1.0"
@@ -223,6 +223,22 @@ proc readPostNavigation*(b: var Buffer): PostNavigation =
   b.decodeInnerInto(result, handlePostNavigationField, outVer)
 
 # ---------------------------------------------------------------------------
+# String map (language code -> URL, used for post translations)
+# ---------------------------------------------------------------------------
+
+proc writeStringMap*(b: var Buffer, t: Table[string, string]) =
+  writeMap[string, string](b, toSeq(pairs(t)),
+    proc (bb: var Buffer, k: string) = bb.writeString(k),
+    proc (bb: var Buffer, v: string) = bb.writeString(v))
+
+proc readStringMap*(b: var Buffer): Table[string, string] =
+  result = initTable[string, string]()
+  for kv in readMap[string, string](b,
+      proc (bb: var Buffer): string = bb.readString(),
+      proc (bb: var Buffer): string = bb.readString()):
+    result[kv.key] = kv.val
+
+# ---------------------------------------------------------------------------
 # PostMeta
 # ---------------------------------------------------------------------------
 
@@ -242,6 +258,8 @@ proc writePostMetaFields(b: var Buffer, m: PostMeta) =
   b.writeField(13'u16, proc (bb: var Buffer) = bb.writeString(m.layout))
   b.writeField(14'u16, proc (bb: var Buffer) = bb.writeInt64LE(m.fileMtime))
   b.writeField(15'u16, proc (bb: var Buffer) = bb.writeString(m.filePath))
+  b.writeField(16'u16, proc (bb: var Buffer) = bb.writeString(m.lang))
+  b.writeField(17'u16, proc (bb: var Buffer) = bb.writeStringMap(m.translations))
 
 proc handlePostMetaField(fid: uint16, fsz: int, b: var Buffer, into: var PostMeta) =
   case fid
@@ -260,6 +278,8 @@ proc handlePostMetaField(fid: uint16, fsz: int, b: var Buffer, into: var PostMet
   of 13'u16: into.layout = b.readString()
   of 14'u16: into.fileMtime = b.readInt64LE()
   of 15'u16: into.filePath = b.readString()
+  of 16'u16: into.lang = b.readString()
+  of 17'u16: into.translations = b.readStringMap()
   else: discard
 
 proc writePostMeta*(b: var Buffer, m: PostMeta) =

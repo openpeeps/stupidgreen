@@ -11,3 +11,11 @@ header.site-header
     nav.site-nav
       for $navItem in items($this["config"]["navbar"]):
         a href=$navItem["url"]: $navItem["title"]
+  if $this["currentLang"] != "":
+    if len($this["translations"]) > 1:
+      nav.site-nav.language-switcher
+        for $tr in items($this["translations"]):
+          if $tr["lang"] != $this["currentLang"]:
+            a.language-switcher__link href=$tr["url"]: $tr["lang"]
+          else:
+            span.language-switcher__current: $tr["lang"]

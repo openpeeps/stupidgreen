@@ -62,6 +62,14 @@ activitypub:
   name: "StupidGreen Blog"
   summary: "Posts from a StupidGreen blog, federated over ActivityPub."
   icon: "/assets/stupidgreen.png"
+languages:
+  # Multilingual support (opt-in). When `enable` is true, translated files
+  # use a lang suffix (`posts/hello-world.ro.md`, `pages/about.ro.md`);
+  # the default language keeps bare names and unprefixed URLs, other
+  # languages live under `/<lang>/...` (e.g. `/ro/about`).
+  enable: false
+  default: "en"
+  supported: ["en"]
 navbar:
   - title: "Home"
     url: "/"

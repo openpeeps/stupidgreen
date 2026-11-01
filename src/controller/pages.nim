@@ -3,7 +3,7 @@
 # (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 
-import std/[json, strutils, sequtils, os, httpcore]
+import std/[json, strutils, sequtils, os, httpcore, tables]
 
 import pkg/supranim/[controller, core/paths, core/application]
 
@@ -23,6 +23,57 @@ proc paginatePosts(posts: seq[Post]; page, perPage: int): tuple[items: seq[Post]
 proc postsJson(posts: seq[Post]): JsonNode =
   ## Converts a sequence of posts to a JsonNode array
   fromJson(toJson(posts))
+
+proc effectiveLang*(raw: string): (string, bool) =
+  ## Splits a `{lang}` route param into (lang code, ok). ok is false
+  ## when the feature is disabled or the code is not supported —
+  ## callers then fall back to default (page) routing.
+  let l = raw.strip().toLowerAscii()
+  if langEnabled() and l in supportedLangs(): (l, true)
+  else: ("", false)
+
+proc viewLang*(lang: string): string =
+  ## Language code exposed to templates ("" when monolingual).
+  pubLang(lang)
+
+proc postsFor*(lang: string): seq[Post] =
+  ## Published posts for `lang` (default language when "").
+  if not langEnabled() or lang.len == 0:
+    gMarkdownService.sorted
+  else:
+    gMarkdownService.sortedByLang.getOrDefault(lang, @[])
+
+proc tagsFor*(lang: string): TableRef[string, seq[Post]] =
+  ## Tag index for `lang` (default language when "").
+  if not langEnabled() or lang.len == 0:
+    gMarkdownService.byTag
+  else:
+    gMarkdownService.byTagByLang.getOrDefault(lang,
+      newTable[string, seq[Post]]())
+
+proc categoriesFor*(lang: string): TableRef[string, seq[Post]] =
+  ## Category index for `lang` (default language when "").
+  if not langEnabled() or lang.len == 0:
+    gMarkdownService.byCategory
+  else:
+    gMarkdownService.byCategoryByLang.getOrDefault(lang,
+      newTable[string, seq[Post]]())
+
+proc tagNameFor*(lang, slug: string): string =
+  ## Display name for a tag slug in `lang` (falls back to the slug).
+  let names =
+    if not langEnabled() or lang.len == 0: gMarkdownService.tagNames
+    else: gMarkdownService.tagNamesByLang.getOrDefault(lang,
+      newTable[string, string]())
+  names.getOrDefault(slug, slug)
+
+proc categoryNameFor*(lang, slug: string): string =
+  ## Display name for a category slug in `lang` (falls back to the slug).
+  let names =
+    if not langEnabled() or lang.len == 0: gMarkdownService.categoryNames
+    else: gMarkdownService.categoryNamesByLang.getOrDefault(lang,
+      newTable[string, string]())
+  names.getOrDefault(slug, slug)
 
 proc postJson(post: Post): JsonNode =
   ## Converts a single post to a JsonNode
@@ -49,7 +100,10 @@ template pageNotFound(): JsonNode =
         "description": "The page you are looking for does not exist."
       },
     },
-    "config": configJson()
+    "config": configJson(),
+    "currentLang": viewLang(""),
+    "siteLangs": %(supportedLangs()),
+    "translations": translationsArray(initTable[string, string]())
   }
 
 proc baseUrl(): string =
@@ -58,23 +112,71 @@ proc baseUrl(): string =
   while result.len > 0 and result[^1] == '/':
     result.setLen(result.len - 1)
 
-proc homepageIntro(): string =
-  ## Returns the rendered homepage intro content: from `pages/index.md`
-  ## when present, otherwise from `posts/index.md`
+proc homepageIntro(lang = ""): string =
+  ## Returns the rendered homepage intro content: for a language, from
+  ## `pages/index.<lang>.md` (falling back to the default intro); by
+  ## default from `pages/index.md`, otherwise `posts/index.md`.
+  if lang.len > 0:
+    let lurl = prefixUrl(lang, "/")
+    if gMarkdownService.pages.hasKey(lurl):
+      return renderHtml(gMarkdownService.pages[lurl])
+    if gMarkdownService.posts.hasKey(lurl):
+      return renderHtml(gMarkdownService.posts[lurl])
   if gMarkdownService.pages.hasKey("/"):
     result = renderHtml(gMarkdownService.pages["/"])
   elif gMarkdownService.posts.hasKey("/"):
     result = renderHtml(gMarkdownService.posts["/"])
 
-proc pagePath(n: int): string =
-  ## Returns the URL of a blog index page
-  if n == 1: "/" else: "/page/" & $n
+proc pagePath(n: int; lang = ""): string =
+  ## Returns the URL of a blog index page, prefixed for non-default
+  ## languages when the feature is enabled.
+  prefixUrl(lang, if n == 1: "/" else: "/page/" & $n)
 
-proc paginationUrls(page, totalPages: int): (string, string) =
-  ## Computes the previous/next pagination URLs
-  let prev = (if page > 1: pagePath(page - 1) else: "")
-  let next = (if page < totalPages: "/page/" & $(page + 1) else: "")
+proc paginationUrls(page, totalPages: int; lang = ""): (string, string) =
+  ## Computes the previous/next pagination URLs (language-prefixed).
+  let prev = (if page > 1: pagePath(page - 1, lang) else: "")
+  let next = (if page < totalPages: pagePath(page + 1, lang) else: "")
   (prev, next)
+
+template indexLocal(lang: string; pageNum: int): JsonNode =
+  ## Shared locals for the blog index (default and language homepages).
+  ## A template so `&*` expands within the route handler, where `req`
+  ## is in scope (common storage references it).
+  let (posts, page, totalPages) =
+    paginatePosts(postsFor(lang), pageNum, globalStupidGreenConfig.pagination.per_page)
+  let (prevUrl, nextUrl) = paginationUrls(page, totalPages, lang)
+  &*{
+    "posts": postsJson(posts),
+    "page": page,
+    "totalPages": totalPages,
+    "prevUrl": prevUrl,
+    "nextUrl": nextUrl,
+    "intro": homepageIntro(lang),
+    "config": configJson(),
+    "currentLang": viewLang(lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = pagePath(pageNum, l))
+  }
+
+template postLocal(post: Post): JsonNode =
+  ## Shared locals for a single post view (template: `&*` needs `req`).
+  &*{
+    "post": postJsonRendered(post),
+    "config": configJson(),
+    "currentLang": viewLang(post.meta.lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": translationsArray(post.meta.translations)
+  }
+
+template pageLocal(page: Post): JsonNode =
+  ## Shared locals for a standalone page view (template: `&*` needs `req`).
+  &*{
+    "page": postJsonRendered(page),
+    "config": configJson(),
+    "currentLang": viewLang(page.meta.lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": translationsArray(page.meta.translations)
+  }
 
 proc defaultLlmsText(): string =
   ## Returns a helpful default `llms.txt` payload when no `llms.md` exists
@@ -92,23 +194,15 @@ ctrl getHomepage:
       let home = gMarkdownService.pages["/"]
       render(resolvePageView(home.meta.layout, "page"), local = &*{
         "page": postJsonRendered(home),
-        "config": configJson()
+        "config": configJson(),
+        "currentLang": viewLang(home.meta.lang),
+        "siteLangs": %(supportedLangs()),
+        "translations": translationsArray(home.meta.translations)
       })
     else:
       render("errors.4xx", local = pageNotFound(), httpCode = Http404)
     return
-  let (posts, page, totalPages) =
-    paginatePosts(gMarkdownService.sorted, 1, globalStupidGreenConfig.pagination.per_page)
-  let (prevUrl, nextUrl) = paginationUrls(page, totalPages)
-  render("index", local = &*{
-    "posts": postsJson(posts),
-    "page": page,
-    "totalPages": totalPages,
-    "prevUrl": prevUrl,
-    "nextUrl": nextUrl,
-    "intro": homepageIntro(),
-    "config": configJson()
-  })
+  render("index", local = indexLocal("", 1))
 
 ctrl getPagePage:
   ## renders a paginated index page (blog mode only)
@@ -116,18 +210,7 @@ ctrl getPagePage:
     render("errors.4xx", local = pageNotFound(), httpCode = Http404)
     return
   let pageNum = req.params["page"].parseInt
-  let (posts, page, totalPages) =
-    paginatePosts(gMarkdownService.sorted, pageNum, globalStupidGreenConfig.pagination.per_page)
-  let (prevUrl, nextUrl) = paginationUrls(page, totalPages)
-  render("index", local = &*{
-    "posts": postsJson(posts),
-    "page": page,
-    "totalPages": totalPages,
-    "prevUrl": prevUrl,
-    "nextUrl": nextUrl,
-    "intro": homepageIntro(),
-    "config": configJson()
-  })
+  render("index", local = indexLocal("", pageNum))
 
 ctrl getPostsSlug:
   ## renders a single post (blog mode only)
@@ -136,10 +219,7 @@ ctrl getPostsSlug:
     return
   let url = "/posts/" & req.params["slug"]
   if gMarkdownService.posts.hasKey(url):
-    render("post", local = &*{
-      "post": postJsonRendered(gMarkdownService.posts[url]),
-      "config": configJson()
-    })
+    render("post", local = postLocal(gMarkdownService.posts[url]))
   else:
     render("errors.4xx", local = &*{
       "post": {
@@ -148,7 +228,10 @@ ctrl getPostsSlug:
           "description": "The page you are looking for does not exist."
         },
       },
-      "config": configJson()
+      "config": configJson(),
+      "currentLang": viewLang(""),
+      "siteLangs": %(supportedLangs()),
+      "translations": translationsArray(initTable[string, string]())
     }, httpCode = Http404)
 
 ctrl getTagsTag:
@@ -157,13 +240,16 @@ ctrl getTagsTag:
     render("errors.4xx", local = pageNotFound(), httpCode = Http404)
     return
   let tagSlug = req.params["tag"]
-  let posts = gMarkdownService.byTag.getOrDefault(tagSlug, @[])
-  let tagName = gMarkdownService.tagNames.getOrDefault(tagSlug, tagSlug)
+  let posts = tagsFor("").getOrDefault(tagSlug, @[])
+  let tagName = tagNameFor("", tagSlug)
   render("tag", local = &*{
     "tag": tagName,
     "tagSlug": tagSlug,
     "posts": postsJson(posts),
-    "config": configJson()
+    "config": configJson(),
+    "currentLang": viewLang(""),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/tags/" & tagSlug))
   })
 
 ctrl getCategoriesCategory:
@@ -172,13 +258,16 @@ ctrl getCategoriesCategory:
     render("errors.4xx", local = pageNotFound(), httpCode = Http404)
     return
   let catSlug = req.params["category"]
-  let posts = gMarkdownService.byCategory.getOrDefault(catSlug, @[])
-  let catName = gMarkdownService.categoryNames.getOrDefault(catSlug, catSlug)
+  let posts = categoriesFor("").getOrDefault(catSlug, @[])
+  let catName = categoryNameFor("", catSlug)
   render("category", local = &*{
     "category": catName,
     "categorySlug": catSlug,
     "posts": postsJson(posts),
-    "config": configJson()
+    "config": configJson(),
+    "currentLang": viewLang(""),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/categories/" & catSlug))
   })
 
 ctrl getSearch:
@@ -187,7 +276,10 @@ ctrl getSearch:
   ## using JavaScript, which fetches the search results from the
   ## getResultsJson endpoint.
   render("search", local = &*{
-    "config": configJson()
+    "config": configJson(),
+    "currentLang": viewLang(""),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/search"))
   })
 
 ctrl getResultsJson:
@@ -197,6 +289,7 @@ ctrl getResultsJson:
     var je = newJObject()
     je["url"] = %(entry.url)
     je["title"] = %(entry.title)
+    je["lang"] = %(entry.lang)
     if entry.description.isSome:
       je["description"] = %(entry.description.get)
     if entry.headings.isSome:
@@ -210,12 +303,12 @@ ctrl getResultsJson:
   })
 
 ctrl getFeedXml:
-  ## returns the RSS/Atom feed as XML (blog mode only)
+  ## returns the RSS/Atom feed as XML (blog mode only, default language)
   if globalStupidGreenConfig.mode == modePages:
     render("errors.4xx", local = pageNotFound(), httpCode = Http404)
     return
   let xml = feedXml(
-    toSeq(gMarkdownService.posts.values),
+    postsFor(""),
     globalStupidGreenConfig,
     baseUrl()
   )
@@ -243,10 +336,7 @@ ctrl getSlug:
   let url = "/" & req.params["slug"]
   if gMarkdownService.pages.hasKey(url):
     let page = gMarkdownService.pages[url]
-    render(resolvePageView(page.meta.layout, "page"), local = &*{
-      "page": postJsonRendered(page),
-      "config": configJson()
-    })
+    render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
   else:
     render("errors.4xx", local = &*{
       "post": {
@@ -255,5 +345,155 @@ ctrl getSlug:
           "description": "The page you are looking for does not exist."
         },
       },
-      "config": configJson()
+      "config": configJson(),
+      "currentLang": viewLang(""),
+      "siteLangs": %(supportedLangs()),
+      "translations": translationsArray(initTable[string, string]())
     }, httpCode = Http404)
+
+template renderPageUrl(url: string) =
+  ## Renders the page at `url` or the 4xx fallback (a template so
+  ## `render` expands within the route handler, where it is in scope).
+  if gMarkdownService.pages.hasKey(url):
+    let page = gMarkdownService.pages[url]
+    render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
+  else:
+    render("errors.4xx", local = &*{
+      "post": {
+        "meta": {
+          "title": "Page Not Found",
+          "description": "The page you are looking for does not exist."
+        },
+      },
+      "config": configJson(),
+      "currentLang": viewLang(""),
+      "siteLangs": %(supportedLangs()),
+      "translations": translationsArray(initTable[string, string]())
+    }, httpCode = Http404)
+
+ctrl getLang:
+  ## renders the language homepage (`/ro`): the language blog index
+  ## with its intro, or a regular page when `lang` is not supported.
+  ## In pages mode `/<lang>` renders the translated homepage or 404s.
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok:
+    renderPageUrl("/" & req.params["lang"])
+    return
+  if globalStupidGreenConfig.mode == modePages:
+    let lurl = prefixUrl(lang, "/")
+    if gMarkdownService.pages.hasKey(lurl) and
+        not gMarkdownService.pages[lurl].meta.draft:
+      let home = gMarkdownService.pages[lurl]
+      render(resolvePageView(home.meta.layout, "page"), local = pageLocal(home))
+    else:
+      render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  render("index", local = indexLocal(lang, 1))
+
+ctrl getLangPagePage:
+  ## renders a paginated language index page (blog mode only)
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok or globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let pageNum = req.params["page"].parseInt
+  render("index", local = indexLocal(lang, pageNum))
+
+ctrl getLangPostsSlug:
+  ## renders a single translated post, a page at the same URL when one
+  ## exists, or 404 when neither does (no default-language fallback).
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok or globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let url = prefixUrl(lang, "/posts/" & req.params["slug"])
+  if gMarkdownService.posts.hasKey(url):
+    render(resolvePageView(gMarkdownService.posts[url].meta.layout, "post"),
+      local = postLocal(gMarkdownService.posts[url]))
+  elif gMarkdownService.pages.hasKey(url):
+    let page = gMarkdownService.pages[url]
+    render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
+  else:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+
+ctrl getLangTagsTag:
+  ## renders a language tag archive page (blog mode only)
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok or globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let tagSlug = req.params["tag"]
+  let posts = tagsFor(lang).getOrDefault(tagSlug, @[])
+  render("tag", local = &*{
+    "tag": tagNameFor(lang, tagSlug),
+    "tagSlug": tagSlug,
+    "posts": postsJson(posts),
+    "config": configJson(),
+    "currentLang": viewLang(lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/tags/" & tagSlug))
+  })
+
+ctrl getLangCategoriesCategory:
+  ## renders a language category archive page (blog mode only)
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok or globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let catSlug = req.params["category"]
+  let posts = categoriesFor(lang).getOrDefault(catSlug, @[])
+  render("category", local = &*{
+    "category": categoryNameFor(lang, catSlug),
+    "categorySlug": catSlug,
+    "posts": postsJson(posts),
+    "config": configJson(),
+    "currentLang": viewLang(lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/categories/" & catSlug))
+  })
+
+ctrl getLangSearch:
+  ## renders the language search page (results are filtered client side
+  ## by `currentLang` using the `lang` field in `results.json`).
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  render("search", local = &*{
+    "config": configJson(),
+    "currentLang": viewLang(lang),
+    "siteLangs": %(supportedLangs()),
+    "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/search"))
+  })
+
+ctrl getLangFeedXml:
+  ## returns the language RSS/Atom feed as XML (blog mode only)
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok or globalStupidGreenConfig.mode == modePages:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let xml = feedXml(
+    postsFor(lang),
+    globalStupidGreenConfig,
+    baseUrl()
+  )
+  respond(Http200, xml, "application/xml")
+
+ctrl getLangLlmsTxt:
+  ## returns the translated `pages/llms.<lang>.md` contents as plain text
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok:
+    render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    return
+  let installPath = appInstance().applicationPaths.getInstallationPath
+  let content = llmsTxtContent(installPath / "pages", lang)
+  respond(Http200, (if content.len > 0: content else: defaultLlmsText()), "text/plain; charset=utf-8")
+
+ctrl getLangSlug:
+  ## renders a translated standalone page, a regular nested page when
+  ## `lang` is not supported, or a 4xx fallback (no translation fallback).
+  let (lang, ok) = effectiveLang(req.params["lang"])
+  if not ok:
+    renderPageUrl("/" & req.params["lang"] & "/" & req.params["slug"])
+    return
+  renderPageUrl(prefixUrl(lang, "/" & req.params["slug"]))

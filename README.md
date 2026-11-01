@@ -186,10 +186,34 @@ The homepage always renders the blog index (`index.timl`): it shows the intro fr
 > `/categories/*`, `/search`, `/feed.xml`, `/sitemap.xml`, `/llms.txt`) are
 > shadowed by those routes.
 
+### Languages
+Multilingual sites are opt-in. Enable them in `stupidgreen.config.yaml`:
+
+```yaml
+languages:
+  enable: true
+  default: "en"
+  supported: ["en", "ro"]
+```
+
+Write one file per language using a lang suffix: `posts/hello-world.md`
+plus `posts/hello-world.ro.md`, `pages/about.md` plus `pages/about.ro.md`.
+The default language keeps bare file names and unprefixed URLs (`/about`,
+`/posts/hello-world`); other languages live under `/<lang>/...`
+(`/ro/about`, `/ro/posts/hello-world`). Scaffold a translation with
+`stupidgreen post "Title" --lang ro`.
+
+Translated pages render a language switcher in the header (listing only
+existing translations) and `hreflang` alternates for SEO. Missing
+translations have no fallback: the translated URL 404s. Feeds, tag/category
+archives and search stay on their own language (the default feed excludes
+translations); `pages/llms.<lang>.md` builds `/<lang>/llms.txt`.
+
 ### Configuration
 `stupidgreen.config.yaml` supports metadata (title, description, url, author),
 appearance (theme, container widths), header (search, notification), content
-(reading time, excerpt length, read-more label, lazyload), pagination (`per_page`),
+(reading time, excerpt length, read-more label, lazyload), languages
+(opt-in translations, see above), pagination (`per_page`),
 feed (kind `rss`/`atom`, limit) and navbar/footer links.
 
 ### ❤ Contributions & Support

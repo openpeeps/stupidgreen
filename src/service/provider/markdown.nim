@@ -23,6 +23,7 @@ import std/[os, tables, httpcore, strutils,
 
 import pkg/openparser/[json, html, fbe]
 import pkg/[watchout, marvdown, kapsis/cli]
+import pkg/kapsis/interactive/prompts
 
 import pkg/supranim/core/[services, application, paths]
 import pkg/supranim/network/websocket
@@ -45,6 +46,11 @@ initService Markdown[Global]:
         byCategory*: TableRef[string, seq[Post]] # category slug -> posts
         tagNames*: TableRef[string, string]     # tag slug -> display name
         categoryNames*: TableRef[string, string] # category slug -> display name
+        sortedByLang*: TableRef[string, seq[Post]] # lang -> published posts (date desc)
+        byTagByLang*: TableRef[string, TableRef[string, seq[Post]]] # lang -> tag slug -> posts
+        byCategoryByLang*: TableRef[string, TableRef[string, seq[Post]]] # lang -> category slug -> posts
+        tagNamesByLang*: TableRef[string, TableRef[string, string]] # lang -> tag slug -> name
+        categoryNamesByLang*: TableRef[string, TableRef[string, string]] # lang -> category slug -> name
         config*: StupidGreenConfig
 
     var
@@ -72,21 +78,146 @@ initService Markdown[Global]:
         enableComponents: false
       )
 
-    proc getSlugHash(basePath, path: string): (string, string) =
-      ## Computes the slug and URL for a given markdown file path
-      var k = path.replace(basePath).replace(".md").slugify(allowSlash = true)
+    proc langEnabled*(): bool =
+      ## Whether multilingual support is active (opt-in via
+      ## `languages.enable` in the site config).
+      globalStupidGreenConfig.languagesEnabled()
+
+    proc defaultLang*(): string =
+      ## The default content language code (bare file names,
+      ## unprefixed URLs). Falls back to `"en"` when unset.
+      globalStupidGreenConfig.defaultLangCode()
+
+    proc supportedLangs*(): seq[string] =
+      ## Supported language codes (lowercased, deduplicated).
+      ## Falls back to the default language when unset.
+      globalStupidGreenConfig.supportedLangCodes()
+
+    proc splitLangSuffix*(relNoExt: string): (string, string, bool) =
+      ## Splits a `.md`-less relative path into (base, lang, ok).
+      ## With the feature disabled every file is default-language
+      ## content: returns (relNoExt, "", true). See `splitLangSuffixRaw`.
+      splitLangSuffixRaw(relNoExt, langEnabled(), defaultLang(), supportedLangs())
+
+    proc checkLangCollision*(baseRel, lang, path: string; isPage: bool) =
+      ## Warns when a default-language page URL sits under a language
+      ## prefix (`pages/ro/about.md` -> `/ro/about`), where translated
+      ## content always wins at serve/build time.
+      if not isPage or not langEnabled() or lang != defaultLang():
+        return
+      let segs = baseRel.split('/').filterIt(it.len > 0)
+      if segs.len > 0 and segs[0] in supportedLangs() and
+          segs[0] != defaultLang():
+        displayWarning("`" & path & "` maps to `/" & segs.join("/") &
+          "`, which collides with the `" & segs[0] &
+          "` language prefix; translated content takes precedence there.")
+
+    proc splitContentPath*(basePath, path: string): (string, string, bool) =
+      ## Splits a content file path into (relative base without `.md`
+      ## or lang suffix, lang code, ok). See `splitLangSuffix`.
+      let rel = path.replace(basePath).replace(".md")
+      if not langEnabled():
+        return (rel, "", true)
+      splitLangSuffix(rel)
+
+    proc prefixUrl*(lang, url: string): string =
+      ## Prefixes `url` with `/<lang>` for non-default languages
+      ## (`/about` -> `/ro/about`, `/` -> `/ro`). Default-language
+      ## and empty-lang URLs pass through unchanged.
+      prefixUrlFor(lang, url, langEnabled(), defaultLang())
+
+    proc isDefaultLangUrl*(url: string): bool =
+      ## Whether `url` serves default-language content (unprefixed, or
+      ## the feature is disabled). Used to keep federation on the
+      ## default language only.
+      ## the feature is disabled). Used to keep federation on the
+      ## default language only.
+      if not langEnabled():
+        return true
+      for code in supportedLangs():
+        if code == defaultLang():
+          continue
+        if url == "/" & code or url.startsWith("/" & code & "/"):
+          return false
+      true
+
+    proc pubLang*(lang: string): string =
+      ## Language code exposed to templates as `currentLang`
+      ## ("" when the languages feature is disabled).
+      if langEnabled():
+        if lang.len > 0: lang else: defaultLang()
+      else: ""
+
+    proc pubLangs*(): seq[string] =
+      ## Supported language codes exposed to templates as `siteLangs`.
+      supportedLangs()
+
+    proc translationsArray*(translations: Table[string, string]): JsonNode =
+      ## Template-ready `[{lang, url}]` array (sorted by lang) for the
+      ## language switcher. Empty when the document has no translations.
+      result = newJArray()
+      var langs = toSeq(keys(translations))
+      langs.sort()
+      for lang in langs:
+        var o = newJObject()
+        o["lang"] = %(lang)
+        o["url"] = %(translations[lang])
+        result.add(o)
+
+    proc siteTranslations*(mkUrl: proc(lang: string): string {.closure.}): JsonNode =
+      ## Template-ready translations array for archive/index/search
+      ## views: the same view in every supported language (default
+      ## language unprefixed). Single entry when the feature is off.
+      var t = initTable[string, string]()
+      for code in supportedLangs():
+        let l = if code == defaultLang(): "" else: code
+        t[code] = mkUrl(l)
+      translationsArray(t)
+
+    proc isLlmsFile*(path: string): bool =
+      ## Whether `path` is an llms source file: `llms.md`, plus
+      ## `llms.<lang>.md` when the languages feature is enabled
+      ## (served as `/<lang>/llms.txt`, never as a page).
+      let name = path.extractFilename
+      if name == "llms.md":
+        return true
+      langEnabled() and name.startsWith("llms.") and name.endsWith(".md")
+
+    proc slugUrlForPost*(baseRel, lang: string): (string, string) =
+      ## Computes (slug, path-part URL) for a post from its suffix-less
+      ## relative name. The caller applies `prefixUrl` for the final URL
+      ## when the slug comes from the title instead of the file name.
+      var k = baseRel.slugify(allowSlash = true)
       if k == "index": k = "/"
       let url = if k == "/": "/" else: "/posts/" & k
       result = (k, url)
 
-    proc getPageUrl(basePath, path: string): string =
-      ## Computes the URL for a page file. `index.md` maps to its parent
-      ## directory (the directory's first page), e.g. `pages/index.md` -> `/`
-      ## and `pages/projects/index.md` -> `/projects`.
-      var segments = path.replace(basePath).replace(".md").split('/').filterIt(it.len > 0)
+    proc pageUrlFor*(baseRel, lang: string): string =
+      ## Computes the URL for a page file from its suffix-less relative
+      ## name. `index.md` maps to its parent directory, e.g.
+      ## `pages/projects/index.md` -> `/projects` (and with a lang
+      ## suffix, `pages/projects/index.ro.md` -> `/ro/projects`).
+      var segments = baseRel.split('/').filterIt(it.len > 0)
       if segments.len > 0 and segments[^1] == "index":
         segments.setLen(segments.len - 1)
-      result = "/" & segments.join("/")
+      prefixUrl(lang, "/" & segments.join("/"))
+
+    proc getSlugHash(basePath, path: string): (string, string, string) =
+      ## Computes the (slug, URL, lang) for a post file. With the
+      ## languages feature enabled non-default languages get prefixed
+      ## URLs; unsupported suffixes fall back to the default language
+      ## (callers skip such files before reaching this proc).
+      let (base, lang, ok) = splitContentPath(basePath, path)
+      let langOrDefault = if ok: lang else: defaultLang()
+      let (k, url) = slugUrlForPost(base, langOrDefault)
+      result = (k, prefixUrl(langOrDefault, url), langOrDefault)
+
+    proc getPageUrl(basePath, path: string): (string, string) =
+      ## Computes the (URL, lang) for a page file. `index.md` maps to
+      ## its parent directory; non-default languages get prefixed URLs.
+      let (base, lang, ok) = splitContentPath(basePath, path)
+      let langOrDefault = if ok: lang else: defaultLang()
+      result = (pageUrlFor(base, langOrDefault), langOrDefault)
 
     proc findFileUrl(isPage: bool, path: string): string =
       ## Finds the URL of a post/page whose source file matches `path`, using
@@ -210,25 +341,28 @@ initService Markdown[Global]:
       if title.len == 0:
         title = md.getTitle()
 
-      # slug & url
+      # slug & url (& lang)
       var slug = ""
       var url = ""
+      var lang = ""
       if isPage:
-        url = getPageUrl(basePath, path)
+        (url, lang) = getPageUrl(basePath, path)
       else:
         let pathSlug = getSlugHash(basePath, path)
+        lang = pathSlug[2]
         if pathSlug[1] == "/":
           # `posts/index.md` is the homepage, always at `/`
-          (slug, url) = pathSlug
+          # (or `/<lang>` for a translated homepage intro)
+          (slug, url) = (pathSlug[0], pathSlug[1])
         elif shouldSlugFromTitle(meta):
           let titleSlug = title.slugify()
           if titleSlug.len > 0 and titleSlug != "index":
             slug = titleSlug
-            url = "/posts/" & titleSlug
+            url = prefixUrl(lang, "/posts/" & titleSlug)
           else:
-            (slug, url) = pathSlug
+            (slug, url) = (pathSlug[0], pathSlug[1])
         else:
-          (slug, url) = pathSlug
+          (slug, url) = (pathSlug[0], pathSlug[1])
 
       # date
       var dateStr = ""
@@ -328,7 +462,8 @@ initService Markdown[Global]:
           draft: draft,
           layout: layout,
           fileMtime: fileTime.toUnix,
-          filePath: path
+          filePath: path,
+          lang: lang
         ),
         content: mdSource,
         last_updated: fileTime.format("yyyy-MM-dd HH:mm:ss"),
@@ -341,25 +476,84 @@ initService Markdown[Global]:
       var md = newMarkdown(post.content, markdownOptions)
       result = md.toHtml()
 
-    proc rebuildIndex() =
-      ## Rebuilds the in-memory sorted list, navigation and tag/category indexes
-      var sorted: seq[Post] = @[]
+    proc groupKeyFor(basePath, filePath: string): string =
+      ## Groups translations of the same document: the suffix-less
+      ## relative name. Returns "" for files that predate `filePath`
+      ## tracking or fall outside the content dirs.
+      if filePath.len == 0 or not filePath.startsWith(basePath):
+        return ""
+      let (base, _, ok) = splitContentPath(basePath, filePath)
+      if not ok:
+        return ""
+      base
+
+    proc rebuildTranslations() =
+      ## (Re)builds `meta.translations` (lang -> URL, including the
+      ## document's own language) for every post and page by grouping
+      ## same-base files. No-op when the languages feature is disabled.
+      if not langEnabled():
+        return
+      for url in toSeq(keys(gMarkdownService.posts)):
+        gMarkdownService.posts[url].meta.translations.clear()
+      for url in toSeq(keys(gMarkdownService.pages)):
+        gMarkdownService.pages[url].meta.translations.clear()
+      var groups = initTable[string, seq[(bool, string)]]()
       for url, post in gMarkdownService.posts:
-        if url == "/" or post.meta.draft:
+        let key = groupKeyFor(contentPath, post.meta.filePath)
+        if key.len > 0:
+          groups.mgetOrPut("post:" & key, @[]).add((false, url))
+      for url, page in gMarkdownService.pages:
+        let key = groupKeyFor(pagesPath, page.meta.filePath)
+        if key.len > 0:
+          groups.mgetOrPut("page:" & key, @[]).add((true, url))
+      for _, members in groups:
+        var byLang = initTable[string, string]()
+        for (isPage, url) in members:
+          let lang =
+            if isPage: gMarkdownService.pages[url].meta.lang
+            else: gMarkdownService.posts[url].meta.lang
+          let code = if lang.len > 0: lang else: defaultLang()
+          byLang[code] = url
+        for (isPage, url) in members:
+          if isPage:
+            gMarkdownService.pages[url].meta.translations = byLang
+          else:
+            gMarkdownService.posts[url].meta.translations = byLang
+
+    proc rebuildIndex() =
+      ## Rebuilds the in-memory sorted lists, navigation and tag/category
+      ## indexes. With the languages feature enabled every language gets
+      ## its own group (same-language older/newer navigation and tag
+      ## archives); the legacy `sorted`/`byTag`/… fields keep serving
+      ## the default language so single-language behavior is unchanged.
+      let enabled = langEnabled()
+      let defLang = defaultLang()
+      var groups = initTable[string, seq[Post]]()
+      for url, post in gMarkdownService.posts:
+        if post.meta.draft or post.meta.slug == "/":
           continue
-        sorted.add(post)
-      sorted.sort(proc (a, b: Post): int = cmp(b.meta.dateUnix, a.meta.dateUnix))
+        let key =
+          if not enabled: ""
+          elif post.meta.lang.len > 0: post.meta.lang
+          else: defLang
+        groups.mgetOrPut(key, @[]).add(post)
+      for key in toSeq(keys(groups)):
+        groups[key].sort(proc (a, b: Post): int = cmp(b.meta.dateUnix, a.meta.dateUnix))
 
-      # chronological navigation (older/newer)
-      for i in 0 ..< sorted.len:
-        var nav = PostNavigation()
-        if i > 0:
-          nav.next = some(PostLink(title: sorted[i - 1].meta.title, url: sorted[i - 1].meta.url))
-        if i < sorted.len - 1:
-          nav.previous = some(PostLink(title: sorted[i + 1].meta.title, url: sorted[i + 1].meta.url))
-        gMarkdownService.posts[sorted[i].meta.url].navigation = nav
+      # chronological navigation (older/newer), within each language
+      for _, lst in groups:
+        for i in 0 ..< lst.len:
+          var nav = PostNavigation()
+          if i > 0:
+            nav.next = some(PostLink(title: lst[i - 1].meta.title, url: lst[i - 1].meta.url))
+          if i < lst.len - 1:
+            nav.previous = some(PostLink(title: lst[i + 1].meta.title, url: lst[i + 1].meta.url))
+          gMarkdownService.posts[lst[i].meta.url].navigation = nav
 
-      # tag/category indexes (keyed by tag slug)
+      let defKey = if enabled: defLang else: ""
+      let sorted = groups.getOrDefault(defKey, @[])
+
+      # tag/category indexes for the default language (legacy fields)
       gMarkdownService.byTag = newTable[string, seq[Post]]()
       gMarkdownService.byCategory = newTable[string, seq[Post]]()
       gMarkdownService.tagNames = newTable[string, string]()
@@ -379,6 +573,38 @@ initService Markdown[Global]:
             gMarkdownService.categoryNames[cat.slug] = cat.name
 
       gMarkdownService.sorted = sorted
+
+      # per-language indexes (used by language routes and builds)
+      gMarkdownService.sortedByLang = newTable[string, seq[Post]]()
+      gMarkdownService.byTagByLang = newTable[string, TableRef[string, seq[Post]]]()
+      gMarkdownService.byCategoryByLang = newTable[string, TableRef[string, seq[Post]]]()
+      gMarkdownService.tagNamesByLang = newTable[string, TableRef[string, string]]()
+      gMarkdownService.categoryNamesByLang = newTable[string, TableRef[string, string]]()
+      for lang, lst in groups:
+        gMarkdownService.sortedByLang[lang] = lst
+        var byTag = newTable[string, seq[Post]]()
+        var byCat = newTable[string, seq[Post]]()
+        var tagNames = newTable[string, string]()
+        var catNames = newTable[string, string]()
+        for post in lst:
+          for tag in post.meta.tags:
+            if not byTag.hasKey(tag.slug):
+              byTag[tag.slug] = @[]
+            byTag[tag.slug].add(post)
+            if not tagNames.hasKey(tag.slug):
+              tagNames[tag.slug] = tag.name
+          for cat in post.meta.categories:
+            if not byCat.hasKey(cat.slug):
+              byCat[cat.slug] = @[]
+            byCat[cat.slug].add(post)
+            if not catNames.hasKey(cat.slug):
+              catNames[cat.slug] = cat.name
+        gMarkdownService.byTagByLang[lang] = byTag
+        gMarkdownService.byCategoryByLang[lang] = byCat
+        gMarkdownService.tagNamesByLang[lang] = tagNames
+        gMarkdownService.categoryNamesByLang[lang] = catNames
+
+      rebuildTranslations()
 
     proc rebuildSearch() =
       ## Rebuilds the Spotlight search index from all non-draft posts.
@@ -439,6 +665,11 @@ initService Markdown[Global]:
         byCategory: newTable[string, seq[Post]](),
         tagNames: newTable[string, string](),
         categoryNames: newTable[string, string](),
+        sortedByLang: newTable[string, seq[Post]](),
+        byTagByLang: newTable[string, TableRef[string, seq[Post]]](),
+        byCategoryByLang: newTable[string, TableRef[string, seq[Post]]](),
+        tagNamesByLang: newTable[string, TableRef[string, string]](),
+        categoryNamesByLang: newTable[string, TableRef[string, string]](),
       )
       var outVer: uint32
       b.decodeRootInto(result, handleMarkdownInstanceField, outVer)
@@ -453,6 +684,11 @@ initService Markdown[Global]:
         byCategory: newTable[string, seq[Post]](),
         tagNames: newTable[string, string](),
         categoryNames: newTable[string, string](),
+        sortedByLang: newTable[string, seq[Post]](),
+        byTagByLang: newTable[string, TableRef[string, seq[Post]]](),
+        byCategoryByLang: newTable[string, TableRef[string, seq[Post]]](),
+        tagNamesByLang: newTable[string, TableRef[string, string]](),
+        categoryNamesByLang: newTable[string, TableRef[string, string]](),
       )
 
     proc removeLegacyStoreFiles() =
@@ -480,7 +716,6 @@ initService Markdown[Global]:
           gMarkdownService.pages = inst.pages
       except:
         freshService()
-      removeLegacyStoreFiles()
 
     proc saveDb() =
       ## Persists the in-memory posts/pages maps to the FBE snapshot.
@@ -491,10 +726,15 @@ initService Markdown[Global]:
       except:
         discard
 
-    proc llmsTxtContent*(pagesPath: string): string =
+    proc llmsTxtContent*(pagesPath: string, lang = ""): string =
       ## Extracts the contents of the project's `pages/llms.md` file as plain
-      ## text. If the file does not exist, an empty string is returned.
-      let fpath = pagesPath / "llms.md"
+      ## text (or `pages/llms.<lang>.md` when a translation exists).
+      ## If no file exists, an empty string is returned.
+      var fpath = pagesPath / "llms.md"
+      if lang.len > 0:
+        let lpath = pagesPath / ("llms." & lang & ".md")
+        if fileExists(lpath):
+          fpath = lpath
       if not fileExists(fpath):
         return ""
       var src = readFile(fpath)
@@ -534,15 +774,23 @@ initService Markdown[Global]:
         if fpath.ext != ".md" or fpath.name.startsWith("!"):
           # skip non-markdown files and temporary files prefixed with "!"
           continue
-        if isPage and path.extractFilename == "llms.md":
-          # `llms.md` is served as `/llms.txt`, not as a page
+        if isPage and isLlmsFile(path):
+          # `llms.md` (or `llms.<lang>.md`) is served as plain text,
+          # never as a page
           continue
+        if langEnabled():
+          let (base, lang, ok) = splitContentPath(dir, path)
+          if not ok:
+            displayWarning("Skipping `" & path &
+              "`: unsupported language suffix (see `languages.supported`).")
+            continue
+          checkLangCollision(base, lang, path, isPage)
         if not titleSlugs:
           # fast path: skip unchanged files (only valid when the URL is
           # derived from the file path, which is always true for pages and
           # for posts when `slugFromTitle` is off)
           let url =
-            if isPage: getPageUrl(dir, path)
+            if isPage: getPageUrl(dir, path)[0]
             else: getSlugHash(dir, path)[1]
           let mtime = getLastModificationTime(path).toUnix
           let prev = cachedAt(url)
@@ -620,9 +868,16 @@ initService Markdown[Global]:
       let path = file.getPath()
       if globalStupidGreenConfig.mode == modePages and not path.startsWith(pagesPath):
         return # pages-only site: the blogging system is disabled
-      if fileExists(path) and not (path.extractFilename == "llms.md" and path.startsWith(pagesPath)):
+      if fileExists(path) and not (isLlmsFile(path) and path.startsWith(pagesPath)):
         let isPage = path.startsWith(pagesPath)
         let basePath = (if isPage: pagesPath else: contentPath)
+        if langEnabled():
+          let (base, lang, ok) = splitContentPath(basePath, path)
+          if not ok:
+            displayWarning("Skipping `" & path &
+              "`: unsupported language suffix (see `languages.supported`).")
+            return
+          checkLangCollision(base, lang, path, isPage)
         let post = parseMarkdownFile(basePath, path, isPage)
         let url = post.meta.url
         # find the previous entry: title-derived slugs mean the URL may not
@@ -632,7 +887,7 @@ initService Markdown[Global]:
         var wasPublished = false
         if previousUrl.len == 0:
           let pathUrl =
-            if isPage: getPageUrl(basePath, path)
+            if isPage: getPageUrl(basePath, path)[0]
             else: getSlugHash(basePath, path)[1]
           if (isPage and gMarkdownService.pages.hasKey(pathUrl)) or
              (not isPage and gMarkdownService.posts.hasKey(pathUrl)):
@@ -672,10 +927,12 @@ initService Markdown[Global]:
           saveDb()
         if not isPage:
           # a title change moved the URL: unpublish the old URL first so
-          # federated feeds get a `Delete` for it
-          if previousUrl.len > 0 and previousUrl != url:
+          # federated feeds get a `Delete` for it (default language only)
+          if previousUrl.len > 0 and previousUrl != url and
+              (post.meta.lang.len == 0 or post.meta.lang == defaultLang()):
             activitypub.removePost(previousUrl)
-          activitypub.onPostChanged(post, renderHtml(post), wasPublished, nowPublished)
+          if post.meta.lang.len == 0 or post.meta.lang == defaultLang():
+            activitypub.onPostChanged(post, renderHtml(post), wasPublished, nowPublished)
         notifyClients()
 
     proc onDelete(file: watchout.File) =
@@ -690,7 +947,7 @@ initService Markdown[Global]:
       var url = findFileUrl(isPage, path)
       if url.len == 0:
         url =
-          if isPage: getPageUrl(basePath, path)
+          if isPage: getPageUrl(basePath, path)[0]
           else: getSlugHash(basePath, path)[1]
       writeWith changeLocker:
         if isPage:
@@ -702,7 +959,9 @@ initService Markdown[Global]:
         rebuildIndex()
         rebuildSearch()
         saveDb()
-      if not isPage:
+      if not isPage and isDefaultLangUrl(url):
+        # federation stays on the default language: translated URLs
+        # were never announced, so there is nothing to retract
         activitypub.removePost(url)
       notifyClients()
 
