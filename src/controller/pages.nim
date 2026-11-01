@@ -219,7 +219,8 @@ ctrl getPostsSlug:
     return
   let url = "/posts/" & req.params["slug"]
   if gMarkdownService.posts.hasKey(url):
-    render("post", local = postLocal(gMarkdownService.posts[url]))
+    let post = gMarkdownService.posts[url]
+    render(resolvePageView(post.meta.layout, "post"), local = postLocal(post))
   else:
     render("errors.4xx", local = &*{
       "post": {
@@ -330,54 +331,118 @@ ctrl getLlmsTxt:
   let content = llmsTxtContent(installPath / "pages")
   respond(Http200, (if content.len > 0: content else: defaultLlmsText()), "text/plain; charset=utf-8")
 
-ctrl getSlug:
-  ## renders standalone pages (from the `pages/` directory) or a 4xx fallback.
-  ## A page front-matter `layout` selects a custom theme view.
-  let url = "/" & req.params["slug"]
-  if gMarkdownService.pages.hasKey(url):
-    let page = gMarkdownService.pages[url]
-    render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
-  else:
-    render("errors.4xx", local = &*{
-      "post": {
-        "meta": {
-          "title": "Page Not Found",
-          "description": "The page you are looking for does not exist."
-        },
-      },
-      "config": configJson(),
-      "currentLang": viewLang(""),
-      "siteLangs": %(supportedLangs()),
-      "translations": translationsArray(initTable[string, string]())
-    }, httpCode = Http404)
+template renderAnyUrl(url: string) =
+  ## Universal fallback renderer (a template so `render` expands within
+  ## the route handler, where it is in scope). Serves every content URL
+  ## the specific controllers serve — pages, posts (layout-aware),
+  ## tag/category archives, paginated indexes, search and language
+  ## homepages — so overlapping route patterns always converge instead
+  ## of depending on router match order.
+  block:
+    var langCtx = ""
+    var rest = url
+    if langEnabled():
+      let stripped = url.strip(chars = {'/'}, leading = true, trailing = false)
+      let slashIdx = stripped.find('/')
+      let firstSeg =
+        if slashIdx < 0: stripped
+        else: stripped[0 ..< slashIdx]
+      if firstSeg in supportedLangs():
+        langCtx = firstSeg
+        rest = if slashIdx < 0: "/" else: stripped[slashIdx .. ^1]
+    var target = url
+    if langCtx == defaultLang():
+      # explicit default-language prefix (`/en/...`): canonical content
+      # lives unprefixed — normalize so every handler converges.
+      langCtx = ""
+      target = rest
+    if rest == "/":
+      # homepage: the blog index (or the translated homepage layout
+      # in pages mode, mirroring `getHomepage` / `getLang`)
+      if globalStupidGreenConfig.mode == modePages:
+        if gMarkdownService.pages.hasKey(target) and
+            not gMarkdownService.pages[target].meta.draft:
+          let home = gMarkdownService.pages[target]
+          render(resolvePageView(home.meta.layout, "page"), local = pageLocal(home))
+        else:
+          render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+      else:
+        render("index", local = indexLocal(langCtx, 1))
+    elif gMarkdownService.pages.hasKey(target):
+      let page = gMarkdownService.pages[target]
+      render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
+    elif rest.startsWith("/posts/"):
+      if gMarkdownService.posts.hasKey(target):
+        let post = gMarkdownService.posts[target]
+        render(resolvePageView(post.meta.layout, "post"), local = postLocal(post))
+      else:
+        render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+    elif rest.startsWith("/tags/"):
+      if globalStupidGreenConfig.mode == modePages:
+        render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+      let tagSlug = rest[len("/tags/") .. ^1]
+      let posts = tagsFor(langCtx).getOrDefault(tagSlug, @[])
+      render("tag", local = &*{
+        "tag": tagNameFor(langCtx, tagSlug),
+        "tagSlug": tagSlug,
+        "posts": postsJson(posts),
+        "config": configJson(),
+        "currentLang": viewLang(langCtx),
+        "siteLangs": %(supportedLangs()),
+        "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/tags/" & tagSlug))
+      })
+    elif rest.startsWith("/categories/"):
+      if globalStupidGreenConfig.mode == modePages:
+        render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+      let catSlug = rest[len("/categories/") .. ^1]
+      let posts = categoriesFor(langCtx).getOrDefault(catSlug, @[])
+      render("category", local = &*{
+        "category": categoryNameFor(langCtx, catSlug),
+        "categorySlug": catSlug,
+        "posts": postsJson(posts),
+        "config": configJson(),
+        "currentLang": viewLang(langCtx),
+        "siteLangs": %(supportedLangs()),
+        "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/categories/" & catSlug))
+      })
+    elif rest.startsWith("/page/"):
+      if globalStupidGreenConfig.mode == modePages:
+        render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+      let numStr = rest[len("/page/") .. ^1]
+      var pageNum = -1
+      try:
+        pageNum = parseInt(numStr)
+      except ValueError:
+        discard
+      if pageNum < 0:
+        render("errors.4xx", local = pageNotFound(), httpCode = Http404)
+      else:
+        render("index", local = indexLocal(langCtx, pageNum))
+    elif rest == "/search":
+      render("search", local = &*{
+        "config": configJson(),
+        "currentLang": viewLang(langCtx),
+        "siteLangs": %(supportedLangs()),
+        "translations": siteTranslations(proc(l: string): string = prefixUrl(l, "/search"))
+      })
+    else:
+      render("errors.4xx", local = pageNotFound(), httpCode = Http404)
 
-template renderPageUrl(url: string) =
-  ## Renders the page at `url` or the 4xx fallback (a template so
-  ## `render` expands within the route handler, where it is in scope).
-  if gMarkdownService.pages.hasKey(url):
-    let page = gMarkdownService.pages[url]
-    render(resolvePageView(page.meta.layout, "page"), local = pageLocal(page))
-  else:
-    render("errors.4xx", local = &*{
-      "post": {
-        "meta": {
-          "title": "Page Not Found",
-          "description": "The page you are looking for does not exist."
-        },
-      },
-      "config": configJson(),
-      "currentLang": viewLang(""),
-      "siteLangs": %(supportedLangs()),
-      "translations": translationsArray(initTable[string, string]())
-    }, httpCode = Http404)
+ctrl getSlug:
+  ## renders anything addressable by path: pages, posts, tag/category
+  ## archives, pagination and search, in any language. The router matches
+  ## overlapping dynamic patterns in hash order, so this catch-all must
+  ## converge with the specific controllers (same content for the same URL).
+  renderAnyUrl("/" & req.params["slug"])
 
 ctrl getLang:
   ## renders the language homepage (`/ro`): the language blog index
-  ## with its intro, or a regular page when `lang` is not supported.
+  ## with its intro. When `lang` is not supported it behaves like the
+  ## catch-all for that path (nested page or 404).
   ## In pages mode `/<lang>` renders the translated homepage or 404s.
   let (lang, ok) = effectiveLang(req.params["lang"])
   if not ok:
-    renderPageUrl("/" & req.params["lang"])
+    renderAnyUrl("/" & req.params["lang"])
     return
   if globalStupidGreenConfig.mode == modePages:
     let lurl = prefixUrl(lang, "/")
@@ -490,10 +555,8 @@ ctrl getLangLlmsTxt:
   respond(Http200, (if content.len > 0: content else: defaultLlmsText()), "text/plain; charset=utf-8")
 
 ctrl getLangSlug:
-  ## renders a translated standalone page, a regular nested page when
-  ## `lang` is not supported, or a 4xx fallback (no translation fallback).
-  let (lang, ok) = effectiveLang(req.params["lang"])
-  if not ok:
-    renderPageUrl("/" & req.params["lang"] & "/" & req.params["slug"])
-    return
-  renderPageUrl(prefixUrl(lang, "/" & req.params["slug"]))
+  ## renders anything under a language prefix (translated pages, posts,
+  ## archives) or a regular nested page when `lang` is not supported.
+  ## Like `getSlug`, it converges with the specific controllers so the
+  ## rendered output never depends on router match order.
+  renderAnyUrl(prefixUrl(req.params["lang"], "/" & req.params["slug"]))

@@ -623,7 +623,8 @@ initService Markdown[Global]:
           description =
             if post.meta.excerpt.len > 0: some(post.meta.excerpt)
             else: none(string),
-          headings = some(headings)
+          headings = some(headings),
+          lang = post.meta.lang
         )
       for url, post in gMarkdownService.posts:
         if post.meta.draft or url == "/":

@@ -99,6 +99,16 @@ proc runTests() =
   assertContains(outDir, "ro/posts/hello-world/index.html", "/posts/hello-world")
   assertContains(outDir, "ro/about/index.html", "hreflang")
 
+  # --- tag archives stay on their own language ---
+  assertContains(outDir, "tags/stupidgreen/index.html", "Hello World")
+  assertNotContains(outDir, "tags/stupidgreen/index.html", "Salut Lume")
+  assertContains(outDir, "ro/tags/stupidgreen/index.html", "Salut Lume")
+  assertNotContains(outDir, "ro/tags/stupidgreen/index.html", "Hello World")
+
+  # --- explicit default-language prefix is never emitted ---
+  if dirExists(outDir / "en"):
+    fail("default language must keep unprefixed URLs (`en/` must not exist)")
+
   # --- no fallback output for untranslated content ---
   if dirExists(outDir / "ro" / "posts" / "only-english"):
     fail("untranslated post must not produce `/ro` output")
@@ -116,7 +126,7 @@ proc runTests() =
 
   # --- search index carries the language of each entry ---
   assertContains(outDir, "results.json", "\"lang\":\"ro\"")
-  assertContains(outDir, "results.json", "\"lang\":\"\"")
+  assertContains(outDir, "results.json", "\"lang\":\"en\"")
 
   echo "OK: all stupidgreen language switcher tests passed"
   quit(0)
