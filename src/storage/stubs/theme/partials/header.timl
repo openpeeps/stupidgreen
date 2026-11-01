@@ -13,9 +13,9 @@ header.site-header
         a href=$navItem["url"]: $navItem["title"]
   if $this["currentLang"] != "":
     if len($this["translations"]) > 1:
-      nav.site-nav.language-switcher
+      select.language-switcher aria-label="Language" onchange="location=this.value"
         for $tr in items($this["translations"]):
           if $tr["lang"] != $this["currentLang"]:
-            a.language-switcher__link href=$tr["url"]: $tr["lang"]
+            option value=$tr["url"]: $tr["lang"]
           else:
-            span.language-switcher__current: $tr["lang"]
+            option value=$tr["url"] selected="selected": $tr["lang"]
