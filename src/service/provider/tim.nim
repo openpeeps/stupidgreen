@@ -221,7 +221,10 @@ initService Tim[Global]:
               "description": "The page you are looking for does not exist."
             },
           },
-          "config": globalStupidGreenConfig
+          "config": globalStupidGreenConfig,
+          "currentLang": "",
+          "siteLangs": newJArray(),
+          "translations": newJArray()
         }))
       except Exception as e:
         displayError("<services.tim> " & e.msg)
@@ -233,7 +236,10 @@ initService Tim[Global]:
               "description": "The page you are looking for does not exist."
             },
           },
-          "config": globalStupidGreenConfig
+          "config": globalStupidGreenConfig,
+          "currentLang": "",
+          "siteLangs": newJArray(),
+          "translations": newJArray()
         }))
 
     template renderView*(view: string, httpCode = Http200, local: JsonNode = nil): untyped =
@@ -251,7 +257,10 @@ initService Tim[Global]:
               "description": "The page you are looking for does not exist."
             },
           },
-          "config": globalStupidGreenConfig
+          "config": globalStupidGreenConfig,
+          "currentLang": "",
+          "siteLangs": newJArray(),
+          "translations": newJArray()
         }))
       except Exception as e:
         logger("Tim Engine: " & e.msg, ERROR)
@@ -263,6 +272,9 @@ initService Tim[Global]:
               "description": "The page you are looking for does not exist."
             },
           },
-          "config": globalStupidGreenConfig
+          "config": globalStupidGreenConfig,
+          "currentLang": "",
+          "siteLangs": newJArray(),
+          "translations": newJArray()
         }))
       return # blocks further execution in the route handler after rendering the view

@@ -138,6 +138,33 @@ proc feedXml*(posts: seq[Post], config: StupidGreenConfig, baseUrl: string): str
   else:
     result = rssFeed(posts, config, baseUrl)
 
+proc sitemapAlternates(translations: Table[string, string]; enabled: bool;
+                        baseUrl: string): string =
+  ## `xhtml:link` alternates for one URL (sorted by lang for stable output).
+  if not enabled or translations.len == 0:
+    return ""
+  var langs = toSeq(keys(translations))
+  langs.sort()
+  for lang in langs:
+    result.add("<xhtml:link rel=\"alternate\" hreflang=\"" & lang &
+      "\" href=\"" & escapeXml(baseUrl & translations[lang]) & "\"/>")
+
+proc sitemapAddUrl(loc, lastmod: string; translations: Table[string, string];
+                   enabled: bool; baseUrl: string): string =
+  result.add("<url><loc>" & escapeXml(loc) & "</loc>")
+  if lastmod.len > 0:
+    result.add("<lastmod>" & lastmod & "</lastmod>")
+  result.add(sitemapAlternates(translations, enabled, baseUrl))
+  result.add("</url>")
+
+proc docLangKey(post: Post; enabled: bool; defLang: string): string =
+  ## Effective language key for archive grouping: "" for
+  ## default-language content so it keeps unprefixed archive URLs.
+  if enabled and post.meta.lang.len > 0 and post.meta.lang != defLang:
+    post.meta.lang
+  else:
+    ""
+
 proc sitemapXml*(posts, pages: seq[Post], config: StupidGreenConfig, baseUrl: string): string =
   ## Generate a sitemap.xml string from the given posts, pages and configuration.
   ## With the languages feature enabled every translation is listed with
@@ -148,54 +175,31 @@ proc sitemapXml*(posts, pages: seq[Post], config: StupidGreenConfig, baseUrl: st
   result.add("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"" &
     " xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">")
 
-  proc docLang(post: Post): string =
-    ## Effective language key: "" for default-language content so it
-    ## keeps unprefixed archive URLs.
-    if enabled and post.meta.lang.len > 0 and post.meta.lang != defLang:
-      post.meta.lang
-    else:
-      ""
-
-  proc alternates(translations: Table[string, string]): string =
-    ## `xhtml:link` alternates, sorted by lang for stable output.
-    if not enabled or translations.len == 0:
-      return ""
-    var langs = toSeq(keys(translations))
-    langs.sort()
-    for lang in langs:
-      result.add("<xhtml:link rel=\"alternate\" hreflang=\"" & lang &
-        "\" href=\"" & escapeXml(baseUrl & translations[lang]) & "\"/>")
-
-  proc addUrl(loc, lastmod: string, translations: Table[string, string]) =
-    result.add("<url><loc>" & escapeXml(loc) & "</loc>")
-    if lastmod.len > 0:
-      result.add("<lastmod>" & lastmod & "</lastmod>")
-    result.add(alternates(translations))
-    result.add("</url>")
-
   # homepage (alternates point at translated homepages, when any)
   var homeTranslations = initTable[string, string]()
   for page in pages:
     if page.meta.url == "/" and not page.meta.draft:
       homeTranslations = page.meta.translations
       break
-  addUrl(baseUrl & "/", "", homeTranslations)
+  result.add(sitemapAddUrl(baseUrl & "/", "", homeTranslations, enabled, baseUrl))
 
   for post in publishedPosts(posts):
-    addUrl(baseUrl & post.meta.url, rfc2822(postDate(post)), post.meta.translations)
+    result.add(sitemapAddUrl(baseUrl & post.meta.url, rfc2822(postDate(post)),
+      post.meta.translations, enabled, baseUrl))
 
   # standalone pages (the homepage entry is already added above;
   # translated homepages like `/ro` are listed here with alternates)
   for page in pages:
     if page.meta.draft or page.meta.url == "/":
       continue
-    addUrl(baseUrl & page.meta.url, "", page.meta.translations)
+    result.add(sitemapAddUrl(baseUrl & page.meta.url, "", page.meta.translations,
+      enabled, baseUrl))
 
   # collect tag/category archive URLs, grouped by language
   var tagsByLang = initTable[string, seq[string]]()
   var catsByLang = initTable[string, seq[string]]()
   for post in publishedPosts(posts):
-    let lang = docLang(post)
+    let lang = docLangKey(post, enabled, defLang)
     for tag in post.meta.tags:
       if tag.slug notin tagsByLang.mgetOrPut(lang, @[]):
         tagsByLang[lang].add(tag.slug)
@@ -207,12 +211,12 @@ proc sitemapXml*(posts, pages: seq[Post], config: StupidGreenConfig, baseUrl: st
       let loc =
         if lang.len == 0: baseUrl & "/tags/" & tag
         else: baseUrl & "/" & lang & "/tags/" & tag
-      addUrl(loc, "", initTable[string, string]())
+      result.add(sitemapAddUrl(loc, "", initTable[string, string](), enabled, baseUrl))
   for lang, cats in catsByLang:
     for cat in cats:
       let loc =
         if lang.len == 0: baseUrl & "/categories/" & cat
         else: baseUrl & "/" & lang & "/categories/" & cat
-      addUrl(loc, "", initTable[string, string]())
+      result.add(sitemapAddUrl(loc, "", initTable[string, string](), enabled, baseUrl))
 
   result.add("</urlset>")

@@ -13,5 +13,8 @@ ctrl get4xx:
         "description": "The page you are looking for does not exist."
       }
     },
-    "config": fromJson(toJson(globalStupidGreenConfig))
+    "config": fromJson(toJson(globalStupidGreenConfig)),
+    "currentLang": "",
+    "siteLangs": newJArray(),
+    "translations": newJArray()
   })
