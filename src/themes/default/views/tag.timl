@@ -6,6 +6,6 @@ div.container-fluid.my-4 style="min-height:calc(100vh - 150px)"
         h1.h4.fw-bold.my-0: i18n("Tag: {tag}", {tag: $this["tag"]})
         a.badge.text-bg-secondary.text-decoration-none href=url("/tags/" & $this["tagSlug"]): $this["tagSlug"]
       if len($this["posts"]) > 0:
-        p.text-muted.mb-0: i18nPlural("{count} post", "{count} posts", len($this["posts"]), {count: len($this["posts"])})
+        p.text-muted.mb-0: i18n("{count} post", "{count} posts", len($this["posts"]), {count: len($this["posts"])})
 
     @include "post-cards"

@@ -244,11 +244,11 @@ initService Tim[Global]:
         proc (args: StackView, argc: int): value.Value =
           return initValue(i18nApplyVars(i18nTranslate(args[0].stringVal[]), timVarsToJson(args[1])))
       )
-      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
+      timInstance.userScript.addProc("i18n", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
         proc (args: StackView, argc: int): value.Value =
           return initValue(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], int(args[2].intVal)))
       )
-      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
+      timInstance.userScript.addProc("i18n", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
         proc (args: StackView, argc: int): value.Value =
           let n = int(args[2].intVal)
           var vars = timVarsToJson(args[3])
@@ -323,11 +323,11 @@ initService Tim[Global]:
         proc (args: StackView, argc: int): value.Value =
           return initValue(i18nApplyVars(i18nTranslate(args[0].stringVal[]), timVarsToJson(args[1])))
       )
-      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
+      timInstance.userScript.addProc("i18n", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt)], ttyString,
         proc (args: StackView, argc: int): value.Value =
           return initValue(i18nNTranslate(args[0].stringVal[], args[1].stringVal[], int(args[2].intVal)))
       )
-      timInstance.userScript.addProc("i18nPlural", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
+      timInstance.userScript.addProc("i18n", @[paramDef("singular", ttyString), paramDef("plural", ttyString), paramDef("n", ttyInt), paramDef("vars", ttyObject)], ttyString,
         proc (args: StackView, argc: int): value.Value =
           let n = int(args[2].intVal)
           var vars = timVarsToJson(args[3])
