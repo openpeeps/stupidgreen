@@ -27,7 +27,7 @@ html lang="en" data-lang=$this["currentLang"]
         if $this["config"]["footer"]["links"] != nil and len($this["config"]["footer"]["links"]) > 0:
           p
             for $link in items($this["config"]["footer"]["links"]):
-              a href=$link["url"]: $link["title"]
+              a href=url($link["url"]): $link["title"]
         p: $this["currentYear"] & " &copy; " & $this["config"]["metadata"]["title"]
         p: "Powered by "
           a href="https://github.com/openpeeps/stupidgreen": "StupidGreen"

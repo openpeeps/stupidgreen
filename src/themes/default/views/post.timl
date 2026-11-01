@@ -70,12 +70,12 @@ div.container-fluid.my-4
         div.col-lg-6.col-md-6
           if $this["post"]["navigation"]["previous"] != nil:
             const previousItem = $this["post"]["navigation"]["previous"]
-            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-start href=$previousItem["url"]
+            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-start href=url($previousItem["url"])
               span.text-muted.small: "&larr; Older"
               span.d-block.mt-1.h6.text-light: $previousItem["title"]
         div.col-lg-6.col-md-6
           if $this["post"]["navigation"]["next"] != nil:
             const nextItem = $this["post"]["navigation"]["next"]
-            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-end href=$nextItem["url"]
+            a.btn.btn-outline-dark.border-2.rounded-4.px-4.py-2.w-100.text-end href=url($nextItem["url"])
               span.text-muted.small: "Newer &rarr;"
               span.d-block.mt-1.h6.text-light: $nextItem["title"]

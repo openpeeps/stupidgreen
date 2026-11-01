@@ -99,6 +99,15 @@ proc runTests() =
   assertContains(outDir, "ro/posts/hello-world/index.html", "/posts/hello-world")
   assertContains(outDir, "ro/about/index.html", "hreflang")
 
+  # --- url() prefixes content links, never assets ---
+  assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/tags/stupidgreen")
+  assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/search")
+  assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/feed.xml")
+  assertContains(outDir, "ro/posts/hello-world/index.html", "/assets/style.css")
+  assertNotContains(outDir, "ro/posts/hello-world/index.html", "/ro/assets")
+  assertContains(outDir, "posts/hello-world/index.html", "/tags/stupidgreen")
+  assertNotContains(outDir, "posts/hello-world/index.html", "/ro/tags")
+
   # --- tag archives stay on their own language ---
   assertContains(outDir, "tags/stupidgreen/index.html", "Hello World")
   assertNotContains(outDir, "tags/stupidgreen/index.html", "Salut Lume")

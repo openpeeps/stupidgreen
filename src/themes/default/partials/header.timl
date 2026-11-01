@@ -3,12 +3,12 @@ div.navbar-container-area.sticky-top.user-select-none
     div.text-center.border-bottom.border-dark.p-1.small: $this["config"]["header"]["notification"]
   nav.navbar.navbar-expand-lg.py-2
     div.container.d-flex
-      a.navbar-brand.fw-bold.py-0 href="/"
+      a.navbar-brand.fw-bold.py-0 href=url("/")
         img src=url($this["site"]["logo"]) alt=$this["site"]["title"] height="32"
 
       if $this["config"]["header"]["search"]["enable"] == true:
         div.col-6.col-lg-4
-          form.spotlight-form.d-flex.ms-3.mb-0.position-relative action="/search" method="GET"
+          form.spotlight-form.d-flex.ms-3.mb-0.position-relative action=url("/search") method="GET"
             input.form-control.form-control-sm.px-3.rounded-4.spotlight.border-2.me-2 type="search" name="q" placeholder="Search the blog..." aria-label="Search the blog"
             button.btn.btn-sm.text-muted.position-absolute.me-2.border-0 type="submit" style="margin-top:2px; right:10px;": "⌘/"
 
@@ -17,7 +17,7 @@ div.navbar-container-area.sticky-top.user-select-none
           ul.navbar-nav.ms-auto.mb-2.mb-lg-0
             for $navItem in items($this["config"]["navbar"]):
               li.nav-item.mx-1
-                a.nav-link.fw-medium href=$navItem["url"]: $navItem["title"]
+                a.nav-link.fw-medium href=url($navItem["url"]): $navItem["title"]
         if $this["currentLang"] != "":
           if len($this["translations"]) > 1:
             select.language-switcher.form-select.form-select-sm.w-auto.ms-3 aria-label="Language" onchange="location=this.value"

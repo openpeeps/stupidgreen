@@ -40,11 +40,11 @@ main.site-main
     nav.post-nav
       if $this["post"]["navigation"]["previous"] != nil:
         const previousItem = $this["post"]["navigation"]["previous"]
-        a href=$previousItem["url"]
+        a href=url($previousItem["url"])
           span: "&larr; Older"
           span: $previousItem["title"]
       if $this["post"]["navigation"]["next"] != nil:
         const nextItem = $this["post"]["navigation"]["next"]
-        a href=$nextItem["url"]
+        a href=url($nextItem["url"])
           span: "Newer &rarr;"
           span: $nextItem["title"]

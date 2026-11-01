@@ -29,21 +29,39 @@ initService Tim[Global]:
       ## Base URL prepended by the `url()` template function. Empty in
       ## dev (the server resolves root-relative paths itself); the
       ## normalized `metadata.url` in builds (absolute asset links).
+    var timRenderLang* {.threadvar.}: string
+      ## Current render language (e.g. `"fr"`), set per render from
+      ## `local["currentLang"]`. Lets `siteUrl` prefix content URLs
+      ## with `/<lang>` for non-default languages.
 
     proc siteUrl*(path: string): string =
       ## Resolves a root-relative path (`/assets/style.css`) against the
       ## site base URL. Absolute URLs pass through untouched; a missing
       ## leading slash is added (empty path resolves to the homepage `/`).
       ## In dev the base is empty, so plain root-relative paths are
-      ## returned (served by the dev server).
-      if path.startsWith("http://") or path.startsWith("https://") or
-         path.startsWith("//") or path.startsWith("data:"):
+      ## returned (served by the dev server). When the languages feature
+      ## is active and the current render language is non-default,
+      ## content paths gain a `/<lang>` prefix (`/search` -> `/fr/search`);
+      ## `/assets/*` never does (static files live unprefixed).
+      if isAbsoluteUrl(path):
         return path
       let p =
         if path.len == 0: "/"
         elif path[0] != '/': "/" & path
         else: path
-      result = timBaseUrl & p
+      if not globalStupidGreenConfig.languagesEnabled():
+        return timBaseUrl & p
+      let cur = timRenderLang
+      if cur.len == 0 or cur == globalStupidGreenConfig.defaultLangCode():
+        return timBaseUrl & p
+      if p == "/":
+        return timBaseUrl & "/" & cur
+      if p == "/assets" or p.startsWith("/assets/"):
+        return timBaseUrl & p
+      for code in globalStupidGreenConfig.supportedLangCodes():
+        if p == "/" & code or p.startsWith("/" & code & "/"):
+          return timBaseUrl & p
+      result = timBaseUrl & "/" & cur & p
 
     Icon.init(
       source = storagePath / "icons",
@@ -156,6 +174,11 @@ initService Tim[Global]:
     proc buildRender*(view, path: string, local: JsonNode): string =
       if timInstance == nil:
         raise newException(ValueError, "Tim Engine not initialized. Call buildSetup first.")
+      timRenderLang =
+        if not local.isNil and local.hasKey("currentLang") and
+            local["currentLang"].kind == JString:
+          local["currentLang"].getStr()
+        else: ""
       var data = newJObject()
       data["path"] = newJString(path)
       data["currentYear"] = newJString(now().format("yyyy"))
@@ -209,72 +232,88 @@ initService Tim[Global]:
                       httpCode = Http200, local: JsonNode = nil): untyped =
       ## Renders a Tim template and sends it as an HTTP response.
       ## It must be used within a route handler (controller).
-      try:
-        let output = render(timInstance, view, layout, local)
-        respond(httpCode, output)
-      except TimEngineError as e:
-        displayError("<services.tim> " & e.msg)
-        respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
-          "post": {
-            "meta": {
-              "title": "Something went wrong",
-              "description": "The page you are looking for does not exist."
+      ## `local` is bound once: callers often pass template expansions
+      ## (`indexLocal(...)`), which must not be evaluated twice.
+      block:
+        let renderLocal: JsonNode = local
+        timRenderLang =
+          if not renderLocal.isNil and renderLocal.hasKey("currentLang") and
+              renderLocal["currentLang"].kind == JString:
+            renderLocal["currentLang"].getStr()
+          else: ""
+        try:
+          let output = render(timInstance, view, layout, renderLocal)
+          respond(httpCode, output)
+        except TimEngineError as e:
+          displayError("<services.tim> " & e.msg)
+          respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
+            "post": {
+              "meta": {
+                "title": "Something went wrong",
+                "description": "The page you are looking for does not exist."
+              },
             },
-          },
-          "config": globalStupidGreenConfig,
-          "currentLang": "",
-          "siteLangs": newJArray(),
-          "translations": newJArray()
-        }))
-      except Exception as e:
-        displayError("<services.tim> " & e.msg)
-        error("error", getCurrentException())
-        respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
-          "post": {
-            "meta": {
-              "title": "Something went wrong",
-              "description": "The page you are looking for does not exist."
+            "config": globalStupidGreenConfig,
+            "currentLang": "",
+            "siteLangs": newJArray(),
+            "translations": newJArray()
+          }))
+        except Exception as e:
+          displayError("<services.tim> " & e.msg)
+          error("error", getCurrentException())
+          respond(Http500, render(timInstance, "errors.5xx", layout, data = &*{
+            "post": {
+              "meta": {
+                "title": "Something went wrong",
+                "description": "The page you are looking for does not exist."
+              },
             },
-          },
-          "config": globalStupidGreenConfig,
-          "currentLang": "",
-          "siteLangs": newJArray(),
-          "translations": newJArray()
-        }))
+            "config": globalStupidGreenConfig,
+            "currentLang": "",
+            "siteLangs": newJArray(),
+            "translations": newJArray()
+          }))
 
     template renderView*(view: string, httpCode = Http200, local: JsonNode = nil): untyped =
       ## Renders a Tim view without a layout and sends it as an HTTP response.
       ## This can be used for rendering partials or standalone views.
-      try:
-        let output = renderView(timInstance, view, local)
-        respond(httpCode, output)
-      except TimEngineError as e:
-        logger("Tim Engine: " & e.msg, ERROR)
-        respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
-          "post": {
-            "meta": {
-              "title": "Something went wrong",
-              "description": "The page you are looking for does not exist."
+      block:
+        let renderLocal: JsonNode = local
+        timRenderLang =
+          if not renderLocal.isNil and renderLocal.hasKey("currentLang") and
+              renderLocal["currentLang"].kind == JString:
+            renderLocal["currentLang"].getStr()
+          else: ""
+        try:
+          let output = renderView(timInstance, view, renderLocal)
+          respond(httpCode, output)
+        except TimEngineError as e:
+          logger("Tim Engine: " & e.msg, ERROR)
+          respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
+            "post": {
+              "meta": {
+                "title": "Something went wrong",
+                "description": "The page you are looking for does not exist."
+              },
             },
-          },
-          "config": globalStupidGreenConfig,
-          "currentLang": "",
-          "siteLangs": newJArray(),
-          "translations": newJArray()
-        }))
-      except Exception as e:
-        logger("Tim Engine: " & e.msg, ERROR)
-        error("error", getCurrentException())
-        respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
-          "post": {
-            "meta": {
-              "title": "Something went wrong",
-              "description": "The page you are looking for does not exist."
+            "config": globalStupidGreenConfig,
+            "currentLang": "",
+            "siteLangs": newJArray(),
+            "translations": newJArray()
+          }))
+        except Exception as e:
+          logger("Tim Engine: " & e.msg, ERROR)
+          error("error", getCurrentException())
+          respond(Http500, renderView(timInstance, "errors.5xx", data = &*{
+            "post": {
+              "meta": {
+                "title": "Something went wrong",
+                "description": "The page you are looking for does not exist."
+              },
             },
-          },
-          "config": globalStupidGreenConfig,
-          "currentLang": "",
-          "siteLangs": newJArray(),
-          "translations": newJArray()
-        }))
+            "config": globalStupidGreenConfig,
+            "currentLang": "",
+            "siteLangs": newJArray(),
+            "translations": newJArray()
+          }))
       return # blocks further execution in the route handler after rendering the view
