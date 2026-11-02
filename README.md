@@ -18,12 +18,20 @@
 - **`/llms.txt`** from `pages/llms.md` (LLM-friendly plain text)
 - **Reading time** & body-derived **excerpts** with "Continue reading" links
 - **OpenGraph Image generation** for social media sharing
+- **Multilingual content** (opt-in): lang-suffixed files, per-language
+  URLs, header language switcher and `hreflang` alternates for SEO
+- Automatic **CSS/JS bundling and minification** on `build`
+  ([Squeezy](https://github.com/openpeeps/squeezy)): configured asset
+  lists merged into `assets/bundle.css`, scripts bundled in place
+- Backend **code highlighting** with line numbers (no client script)
+- **Pages-only mode** (`mode: pages`): custom-route sites without the
+  blogging system, with per-page layout views
 - Easy to extend with custom **CSS** and **JS**
 
 ## About
 StupidGreen is a static blog generator written in [Nim](https://nim-lang.org). It takes a
 directory of Markdown files and generates a fully static website, powered by [Supranim](https://supranim.com),
-[Tim Engine](https://github.com/openpeeps/tim), [Marvdown](https://github.com/openpeeps/marvdown) and [Boogie](https://github.com/openpeeps/boogie).
+[Tim Engine](https://github.com/openpeeps/tim), [Marvdown](https://github.com/openpeeps/marvdown) and [OpenParser](https://github.com/openpeeps/openparser) (lock-free FBE persistence).
 
 ## 🚀 Getting Started
 
