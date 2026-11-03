@@ -244,10 +244,6 @@ type
       ## `assets/` is picked up automatically, except vendored
       ## `*.min.js` (already minified — list one explicitly to
       ## force it through the pipeline).
-    mangle*: bool = false
-      ## Whether to mangle JS identifiers (implies minify)
-    sourcemap*: bool = false
-      ## Whether to emit a `.map` file next to each bundled JS file
 
   FeedSettings* = object
     ## Settings for the blog feed

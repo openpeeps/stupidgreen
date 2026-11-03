@@ -64,8 +64,6 @@ assets:
   bundle: true
   css: ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]
   js: ["app.js"]
-  mangle: false
-  sourcemap: false
 feed:
   enable: true
   limit: 20
@@ -75,7 +73,7 @@ activitypub:
   username: "blog"
   name: "StupidGreen Blog"
   summary: "Posts from a StupidGreen blog, federated over ActivityPub."
-  icon: "/assets/stupidgreen.png"
+  icon: "/cache/stupidgreen.png"
 languages:
   # Multilingual support (opt-in). When `enable` is true, translated files
   # use a lang suffix (`posts/hello-world.ro.md`, `pages/about.ro.md`);

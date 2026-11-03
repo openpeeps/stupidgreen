@@ -16,12 +16,30 @@
 import std/[os, strutils, algorithm]
 
 import pkg/squeezy
+import pkg/squeezy/bundle/js/minifier as jsminifier
 import pkg/kapsis/interactive/prompts
 
 import ../../app/structs
 
 const cssBundleName* = "bundle.css"
   ## Output filename for the merged stylesheet, relative to `assets/`
+
+const jsBundleName* = "bundle.js"
+  ## Output filename for the merged script, relative to `assets/`
+
+proc stripJsSourceMapRef*(code: string): string =
+  ## Removes `//# sourceMappingURL=...` lines. Vendored `.min.js`
+  ## files ship one pointing at their own `.map`; once inlined into
+  ## `bundle.js` the reference is stale, so it is dropped.
+  result = code
+  while true:
+    let s = result.find("//# sourceMappingURL=")
+    if s < 0: break
+    var e = result.find("\n", s)
+    if e < 0:
+      result = result[0 ..< s]
+      break
+    result = result[0 ..< s] & result[e .. ^1]
 
 proc resolveCssInputs*(assetsDir: string, listed: seq[string]): seq[string] =
   ## Full CSS input list for the merge. `listed` files come first, in
@@ -57,12 +75,12 @@ proc resolveCssInputs*(assetsDir: string, listed: seq[string]): seq[string] =
   result.add(rest.sorted())
 
 proc resolveJsInputs*(assetsDir: string, listed: seq[string]): seq[string] =
-  ## Full JS input list. `listed` files come first, in order (a missing
-  ## one fails the command — explicit listing even forces vendored
-  ## `*.min.js` through the pipeline); then every other `*.js` under
-  ## `assetsDir` is appended automatically, alphabetical, except vendored
-  ## `*.min.js` (already minified) and sourcemaps from previous runs.
-  ## Hidden files are skipped like the asset copy does.
+  ## Full JS input list for the merge. `listed` files come first, in
+  ## order (a missing one fails the command); then every other `*.js`
+  ## under `assetsDir` is appended automatically — vendored `*.min.js`
+  ## first, then the rest, each alphabetical. `bundle.js` itself and
+  ## sourcemaps are never inputs (a previous run's bundle may sit in the
+  ## public dir), and hidden files are skipped like the asset copy does.
   result = @[]
   for rel in listed:
     if not fileExists(assetsDir / rel):
@@ -70,7 +88,7 @@ proc resolveJsInputs*(assetsDir: string, listed: seq[string]): seq[string] =
         "` (listed under `assets.js`)", quitProcess = true)
     if rel notin result:
       result.add(rel)
-  var rest: seq[string] = @[]
+  var mins, rest: seq[string] = @[]
   for fpath in walkDirRec(assetsDir,
       yieldFilter = {pcFile, pcLinkToFile}):
     if not fileExists(fpath):
@@ -78,11 +96,15 @@ proc resolveJsInputs*(assetsDir: string, listed: seq[string]): seq[string] =
     let rel = relativePath(fpath, assetsDir)
     if extractFilename(rel).startsWith("."):
       continue
-    if rel in result or not rel.endsWith(".js"):
+    if rel == jsBundleName or rel in result:
       continue
-    if rel.endsWith(".min.js") or rel.endsWith(".js.map"):
+    if not rel.endsWith(".js") or rel.endsWith(".js.map"):
       continue
-    rest.add(rel)
+    if rel.endsWith(".min.js"):
+      mins.add(rel)
+    else:
+      rest.add(rel)
+  result.add(mins.sorted())
   result.add(rest.sorted())
 
 proc stripSourceMapRef*(code: string): string =
@@ -164,35 +186,30 @@ proc bundleBuildAssets*(assetsDir: string, cfg: AssetsSettings) =
       " (" & $code.len & " bytes, was " & $rawSize & " bytes)")
 
   block:
-    let jsCfg = BundleConfig(minify: true, mangle: cfg.mangle,
-      sourceMap: cfg.sourcemap)
-    for rel in resolveJsInputs(assetsDir, cfg.js):
-      let path = assetsDir / rel
-      let rawSize = getFileSize(path)
-      if cfg.sourcemap:
-        # raw bundle first, then a single minify pass so the map
-        # covers the whole bundle (same approach as the Squeezy CLI)
-        var raw = ""
-        try:
-          raw = bundle(path, BundleConfig(minify: false))
-        except CatchableError as e:
-          displayError("Could not bundle `assets/" & rel &
-            "`: " & e.msg, quitProcess = true)
-        var res: MinifyResult
-        try:
-          res = minifyWithSourceMap(raw, "js", jsCfg,
-            extractFilename(path))
-        except CatchableError as e:
-          displayError("Could not minify `assets/" & rel &
-            "`: " & e.msg, quitProcess = true)
-        emitJs(rel, path, res.code & "\n//# sourceMappingURL=" &
-          extractFilename(path) & ".map\n", rawSize)
-        writeFile(path & ".map", res.sourceMapRaw)
-      else:
-        var code = ""
-        try:
-          code = bundle(path, jsCfg)
-        except CatchableError as e:
-          displayError("Could not bundle `assets/" & rel &
-            "`: " & e.msg, quitProcess = true)
-        emitJs(rel, path, code, rawSize)
+    let jsInputs = resolveJsInputs(assetsDir, cfg.js)
+    if jsInputs.len > 0:
+      # one script: every source is minified on its own (exports/imports
+      # stripped — these are classic page scripts, not ES modules) and the
+      # outputs are concatenated in input order into `assets/bundle.js`.
+      # Minifying per file keeps each parse small and proven; the merged
+      # bundle is validated as a whole below.
+      let genOpts = JsGenOptions(minify: true, mangle: false,
+        stripExports: true)
+      var parts: seq[string] = @[]
+      var rawSize = 0
+      for rel in jsInputs:
+        let path = assetsDir / rel
+        rawSize += getFileSize(path).int
+        if rel.endsWith(".min.js"):
+          # already minified: inline raw (stale map refs stripped)
+          parts.add(readFile(path).strip().stripJsSourceMapRef().strip())
+        else:
+          var code = ""
+          try:
+            code = jsminifier.minifyJs(readFile(path), genOpts).code
+          except CatchableError as e:
+            displayError("Could not bundle `assets/" & rel &
+              "`: " & e.msg, quitProcess = true)
+          parts.add(code)
+      let code = parts.join("\n;\n") & "\n"
+      emitJs(jsBundleName, assetsDir / jsBundleName, code, rawSize.int64)

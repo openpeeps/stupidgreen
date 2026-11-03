@@ -22,7 +22,8 @@
   URLs, header language switcher and `hreflang` alternates for SEO
 - Automatic **CSS/JS bundling and minification** on `build`
   ([Squeezy](https://github.com/openpeeps/squeezy)): configured asset
-  lists merged into `assets/bundle.css`, scripts bundled in place
+  lists merged into `cache/bundle.css` + `cache/bundle.js` (bundled
+  sources are never copied as standalone files)
 - Backend **code highlighting** with line numbers (no client script)
 - **Pages-only mode** (`mode: pages`): custom-route sites without the
   blogging system, with per-page layout views
@@ -171,40 +172,40 @@ cp themes/default/layouts/base.timl themes/minimal/layouts/
 
 ### Asset pipeline
 On `build` — and at startup on `run`, so the dev server serves the same
-files — the stylesheets in `assets/` are merged into `assets/bundle.css`,
-and each script in `assets/` is bundled independently, in place
-(minified) — powered by [Squeezy](https://github.com/openpeeps/squeezy).
-Files named under `assets.css`/`assets.js` come first, in listed order;
-every other `*.css`/`*.js` in `assets/` is picked up automatically
-(vendored `*.min.css` is inlined raw and first, so keep frameworks
-first for the cascade and `@charset`; `*.min.js` is left alone unless
-listed). The emitted output is validated, and any failure (a listed
-file missing, a bundling or validation error) fails the command.
+files — every stylesheet in `assets/` is merged into `cache/bundle.css`
+and every script into `cache/bundle.js` (minified) — powered by
+[Squeezy](https://github.com/openpeeps/squeezy). Files named under
+`assets.css`/`assets.js` come first, in listed order; every other
+`*.css`/`*.js` in `assets/` is picked up automatically (vendored
+`*.min.css` is inlined raw and first, so keep frameworks first for the
+cascade and `@charset`; `*.min.js` is inlined raw too). The emitted
+output is validated, and any failure (a listed file missing, a bundling
+or validation error) fails the command.
 
 ```yaml
 # stupidgreen.config.yaml
 assets:
   bundle: true                          # opt out with `false`
   css: ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]  # merged -> bundle.css, in order
-  js: ["app.js"]                        # each bundled in place
-  mangle: false                         # mangle JS identifiers
-  sourcemap: false                      # emit `.map` next to bundled JS
+  js: ["app.js"]                        # merged -> bundle.js, in order
 ```
 
-Custom themes link the merged stylesheet — only `bundle: false`
-disables the pipeline (and keeps the old copy-everything behavior):
+Custom themes link the two bundles — only `bundle: false` disables the
+pipeline (and keeps the old copy-everything behavior):
 
 ```timl
-link rel="stylesheet" href=url("/assets/bundle.css")
+link rel="stylesheet" href=url("/cache/bundle.css")
+script type="text/javascript" src=url("/cache/bundle.js")
 ```
 
-Merged stylesheets are consumed by the bundle: build output ships
-`bundle.css` only, plus the processed scripts and the remaining static
-files (images, fonts, vendored `*.min.js`).
+Bundled sources are never copied as standalone files: `cache/` ships
+`bundle.css`, `bundle.js` and the remaining static files (images,
+fonts, ...). Theme assets keep their source location
+(`themes/<name>/assets/`) and are still served from there.
 
 Existing projects (whose config has no `assets` section) get the same
 behavior automatically: bundling is on and every stylesheet/script is
-discovered. The dev server (`run`) rebuilds the bundle at startup, so
+discovered. The dev server (`run`) rebuilds the bundles at startup, so
 restart it to pick up asset edits.
 
 ### Post front matter
@@ -217,7 +218,7 @@ tags: [nim, blogging]
 categories: [tutorial]
 author: "George Lemon"
 excerpt: "Optional custom excerpt"  # overrides the auto-generated one
-cover: "/assets/cover.jpg"
+cover: "/cache/cover.jpg"
 draft: false
 ---
 ```

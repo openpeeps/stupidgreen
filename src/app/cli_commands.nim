@@ -3,7 +3,7 @@
 # (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 
-import std/[os, osproc, sequtils, strutils, tables, json, times]
+import std/[os, osproc, sequtils, strutils, tables, json, times, tempfiles]
 from std/net import Port
 
 import pkg/openparser/[json, yaml]
@@ -175,11 +175,11 @@ proc seedDefaultTheme*(projectPath: string) =
 
 proc initThemeDisks*(projectPath: string) =
   ## Registers runtime storage disks for public assets:
-  ## `project-assets` (read/write), `theme-active` and `theme-default`
-  ## (read-only). Used to serve `/assets/*` with project-first precedence.
+  ## `project-cache` (read/write), `theme-active` and `theme-default`
+  ## (read-only). Used to serve `/cache/*` with project-first precedence.
   storage.init(App)
-  storage().addDisk("project-assets",
-    newLocalDriver(projectPath / "assets"))
+  storage().addDisk("project-cache",
+    newLocalDriver(projectPath / "cache"))
   let active = activeThemeName()
   storage().addDisk("theme-active",
     newLocalDriver(projectPath / "themes" / active / "assets"),
@@ -189,7 +189,7 @@ proc initThemeDisks*(projectPath: string) =
     PolicyRules(readOnly: true))
 
 proc resolvePublicAsset*(rel: string): string =
-  ## Resolves a public `/assets/...` path to an absolute file path,
+  ## Resolves a public `/cache/...` path to an absolute file path,
   ## probing project assets first, then the active theme, then the
   ## default (fallback) theme. Returns "" when no disk provides it.
   let relPath = normalizedPath(rel.strip(chars = {'/'}, leading = true))
@@ -198,7 +198,7 @@ proc resolvePublicAsset*(rel: string): string =
     return ""
   # Project assets win over theme files with the same name; the active
   # theme is next, then the default (fallback) theme.
-  let diskOrder = @["project-assets", "theme-active", "theme-default"]
+  let diskOrder = @["project-cache", "theme-active", "theme-default"]
   for diskName in diskOrder:
     try:
       let d = storage().rawDisk(diskName)
@@ -210,42 +210,71 @@ proc resolvePublicAsset*(rel: string): string =
       continue
   return ""
 
-proc copyThemeAssetsToPublic*(projectPath: string) =
-  ## Copies fallback + active theme assets into `<project>/assets/`, the
-  ## directory used for public serving. Same-named files are always
-  ## overwritten so the served files match the active theme — customize
-  ## `themes/<name>/assets/style.css` itself, not the public copy.
-  ## Files the theme doesn't ship are left alone.
-  let destRoot = projectPath / "assets"
-  createDir(destRoot)
-  var copied = 0
-  proc copyThemeDir(themeName: string) =
-    let assetsDir = projectPath / "themes" / themeName / "assets"
-    if not dirExists(assetsDir):
-      return
-    # follow symlinks so symlinked theme trees (theme dev via `ln -s`)
-    # copy exactly like regular directories
-    for fpath in walkDirRec(assetsDir,
-                            yieldFilter = {pcFile, pcLinkToFile},
-                            followFilter = {pcDir, pcLinkToDir}):
-      if not fileExists(fpath):
-        continue
-      let rel = relativePath(fpath, assetsDir)
-      if extractFilename(rel).startsWith("."):
-        continue
-      let dest = destRoot / rel
-      try:
-        createDir(dest.parentDir)
-        copyFile(fpath, dest)
-        inc copied
-      except:
-        display("Could not copy theme asset: " & rel)
-  copyThemeDir(defaultThemeName)
+proc copyDiskToDir*(diskName, destDir: string): int =
+  ## Copies every file from a storage disk into `destDir`, preserving
+  ## relative paths and skipping hidden files. Later calls overwrite
+  ## earlier ones, so call it fallback-first for precedence.
+  var d: StorageDriver
+  try:
+    d = storage().rawDisk(diskName)
+  except StorageError:
+    return 0
+  var entries: seq[FileMetadata]
+  try:
+    entries = d.list("", recursive = true)
+  except StorageError:
+    return 0
+  for e in entries:
+    if e.isDir or extractFilename(e.path).startsWith("."):
+      continue
+    let dest = destDir / e.path
+    try:
+      createDir(dest.parentDir)
+      writeFile(dest, d.read(e.path))
+      inc result
+    except CatchableError:
+      display("Could not copy asset: " & e.path)
+
+proc materializeAssets*(destDir: string, cfg: AssetsSettings) =
+  ## Fills `destDir` with the site's public assets: every theme/project
+  ## asset is copied there (fallback theme, active theme, then project —
+  ## later copies win), EXCEPT files consumed by bundling. The bundles are
+  ## generated from a staging dir and land as `bundle.css` / `bundle.js`,
+  ## so sources never ship as standalone files next to them.
+  createDir(destDir)
+  let staging = createTempDir("stupidgreen_bundle_", "")
+  defer: removeDir(staging)
+  discard copyDiskToDir("theme-default", staging)
   if activeThemeName() != defaultThemeName:
-    copyThemeDir(activeThemeName())
-  if copied > 0:
-    display("Public assets synced from theme \"" & activeThemeName() &
-      "\" (" & $copied & " file(s) into assets/)")
+    discard copyDiskToDir("theme-active", staging)
+  discard copyDiskToDir("project-cache", staging)
+
+  var consumed: seq[string] = @[]
+  if cfg.bundle:
+    consumed = resolveCssInputs(staging, cfg.css) &
+      resolveJsInputs(staging, cfg.js)
+
+  # copy everything that is not merged into a bundle
+  for fpath in walkDirRec(staging,
+      yieldFilter = {pcFile, pcLinkToFile},
+      followFilter = {pcDir, pcLinkToDir}):
+    if not fileExists(fpath):
+      continue
+    let rel = relativePath(fpath, staging)
+    if extractFilename(rel).startsWith(".") or rel in consumed:
+      continue
+    let dest = destDir / rel
+    try:
+      createDir(dest.parentDir)
+      copyFile(fpath, dest)
+    except CatchableError:
+      display("Could not copy asset: " & rel)
+
+  if cfg.bundle:
+    bundleBuildAssets(staging, cfg)
+    for name in [cssBundleName, jsBundleName]:
+      if fileExists(staging / name):
+        copyFile(staging / name, destDir / name)
 
 proc seedStorageLocale*(projectPath: string) =
   ## Ensures `<project>/storage/en.pot` exists (the English gettext
@@ -273,7 +302,7 @@ proc newCommand*(v: Values) =
   else:
     writeFile(dirPath / "stupidgreen.config.yaml", configText)
   createDir(dirPath / "pages")
-  createDir(dirPath / "assets")
+  createDir(dirPath / "cache")
   if pagesMode:
     writeFile(dirPath / "pages" / "index.md", defaultHomePage)
   else:
@@ -442,31 +471,11 @@ proc runCommand*(v: Values) =
   seedStorageLocale(projectPath)
   tim.loadI18n(projectPath)
   initThemeDisks(projectPath)
-  copyThemeAssetsToPublic(projectPath)
 
-  # Asset pipeline (Squeezy), same as `build`: templates link
-  # `assets/bundle.css`, which only exists after bundling, so the dev
-  # server must produce it too — otherwise every page 404s its stylesheet.
-  # Listed sources missing from the public dir are staged from the theme
-  # disks first (fail-fast when a listed file exists nowhere), then the
-  # pipeline bundles in place.
-  if globalStupidGreenConfig.assets.bundle:
-    let publicDir = projectPath / "assets"
-    createDir(publicDir)
-    for rel in globalStupidGreenConfig.assets.css & globalStupidGreenConfig.assets.js:
-      let dest = publicDir / rel
-      if not fileExists(dest):
-        let src = resolvePublicAsset(rel)
-        if src.len == 0:
-          displayError("Asset not found: `assets/" & rel &
-            "` (listed under `assets`)", quitProcess = true)
-        try:
-          createDir(dest.parentDir)
-          copyFile(src, dest)
-        except CatchableError as e:
-          displayError("Could not stage asset `assets/" & rel &
-            "`: " & e.msg, quitProcess = true)
-    bundleBuildAssets(publicDir, globalStupidGreenConfig.assets)
+  # Asset pipeline (Squeezy): `cache/` gets every public asset, except
+  # the sources consumed by bundling — those ship only inside
+  # `cache/bundle.css` / `cache/bundle.js`.
+  materializeAssets(projectPath / "cache", globalStupidGreenConfig.assets)
 
   # init ActivityPub federation (no-op when disabled in the config).
   # In pages mode federation is skipped entirely: it is part of the
@@ -522,57 +531,13 @@ proc buildCommand*(v: Values) =
   )
 
   createDir(outputPath)
-  createDir(outputPath / "assets")
 
-  proc copyDiskAssets(diskName: string) =
-    ## Copies every file from a theme/project storage disk into the build
-    ## output. Called fallback-first (then active theme, then project), so
-    ## later copies overwrite earlier ones and project assets always win.
-    var d: StorageDriver
-    try:
-      d = storage().rawDisk(diskName)
-    except StorageError:
-      return
-    var entries: seq[FileMetadata]
-    try:
-      entries = d.list("", recursive = true)
-    except StorageError:
-      return
-    for e in entries:
-      if e.isDir or extractFilename(e.path).startsWith("."):
-        continue
-      let dest = outputPath / "assets" / e.path
-      try:
-        createDir(dest.parentDir)
-        writeFile(dest, d.read(e.path))
-      except:
-        display("Could not copy asset: " & e.path)
-
-  copyDiskAssets("theme-default")
-  if activeThemeName() != defaultThemeName:
-    copyDiskAssets("theme-active")
-  copyDiskAssets("project-assets")
-
-  # asset pipeline (Squeezy): merges `assets.css` into `assets/bundle.css`
-  # (custom styles minified, `.min.css` vendored files inlined raw)
-  # and bundles each `assets.js` script in place. Merged CSS sources are
-  # consumed by the bundle and pruned from the output below, so vendored
-  # frameworks don't ship twice. Configs without the `assets` section are
-  # backfilled with the standard lists in `loadStupidGreen`; only an
-  # explicit `bundle: false` skips this and keeps the raw-copy behavior.
-  if globalStupidGreenConfig.assets.bundle:
-    bundleBuildAssets(outputPath / "assets", globalStupidGreenConfig.assets)
-    var pruned = 0
-    for rel in resolveCssInputs(outputPath / "assets", globalStupidGreenConfig.assets.css):
-      let p = outputPath / "assets" / rel
-      if fileExists(p):
-        try:
-          removeFile(p)
-          inc pruned
-        except CatchableError:
-          display("Could not prune bundled asset: " & rel)
-    if pruned > 0:
-      display("Pruned " & $pruned & " bundled CSS source(s) from assets/")
+  # asset pipeline: every public asset lands in `cache/` except the
+  # sources consumed by bundling (they ship only inside `bundle.css` /
+  # `bundle.js`). Configs without the `assets` section are backfilled
+  # with the standard lists in `loadStupidGreen`; only an explicit
+  # `bundle: false` keeps the raw-copy behavior.
+  materializeAssets(outputPath / "cache", globalStupidGreenConfig.assets)
 
   proc configJson(): JsonNode =
     ## Converts the global StupidGreen configuration to a JsonNode

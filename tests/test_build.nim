@@ -122,7 +122,7 @@ proc runTests() =
   writeFile(dir / "themes" / "custom" / "assets" / "custom.css",
     ".custom-theme {\n  color: blue;\n}\n")
   # project assets always win over theme assets
-  writeFile(dir / "assets" / "custom.css",
+  writeFile(dir / "cache" / "custom.css",
     ".project-override {\n  color: red;\n}\n")
   let themeConfig = dir / "stupidgreen.config.yaml"
   writeFile(themeConfig,
@@ -135,16 +135,15 @@ proc runTests() =
   # ... while views missing from the custom theme fall back to default
   assertContains(outDir, "posts/hello-world/index.html", "Welcome to your brand new")
   # theme CSS is merged into the bundle (not emitted separately) ...
-  let customBundle = readFile(outDir / "assets" / "bundle.css")
+  let customBundle = readFile(outDir / "cache" / "bundle.css")
   if ".project-override" notin customBundle:
     fail("project custom.css should win and land in bundle.css")
   if ".custom-theme" in customBundle:
     fail("theme custom.css should lose to the project override")
-  if fileExists(outDir / "assets" / "custom.css"):
+  if fileExists(outDir / "cache" / "custom.css"):
     fail("merged custom.css must not be emitted alongside bundle.css")
   # ... and non-CSS assets (images, fonts, vendored JS) are still copied
-  assertFile(outDir, "assets/bootstrap.min.js")
-  assertFile(outDir, "assets/stupidgreen.png")
+  assertFile(outDir, "cache/stupidgreen.png")
 
   # --- themes (unknown theme fails with a clear error) ---
   writeFile(themeConfig,
@@ -206,11 +205,11 @@ proc runTests() =
 
   # --- asset pipeline (Squeezy CSS merge + JS bundling) ---
   # the default `new` config merges bootstrap/style/sweetsyntax/print CSS
-  # into `assets/bundle.css` (vendored `.min.css` inlined raw, custom
-  # styles minified) and bundles `assets/app.js` in place
-  assertFile(slugOut, "assets/bundle.css")
-  assertFile(slugOut, "assets/app.js")
-  let bundleCss = readFile(slugOut / "assets" / "bundle.css")
+  # into `cache/bundle.css` (vendored `.min.css` inlined raw, custom
+  # styles minified) and merges every script into `cache/bundle.js`
+  assertFile(slugOut, "cache/bundle.css")
+  assertFile(slugOut, "cache/bundle.js")
+  let bundleCss = readFile(slugOut / "cache" / "bundle.css")
   if "@media print" notin bundleCss:
     fail("bundle.css should contain the merged print.css (@media print)")
   if "--bs-blue" notin bundleCss:
@@ -222,24 +221,25 @@ proc runTests() =
   var rawCssSize = 0
   for f in ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]:
     rawCssSize += getFileSize(slugDir / "themes" / "default" / "assets" / f)
-  if getFileSize(slugOut / "assets" / "bundle.css") >= rawCssSize:
+  if getFileSize(slugOut / "cache" / "bundle.css") >= rawCssSize:
     fail("bundle.css should be smaller than the unmerged sources")
-  assertContains(slugOut, "index.html", "assets/bundle.css")
+  assertContains(slugOut, "index.html", "cache/bundle.css")
+  assertContains(slugOut, "index.html", "cache/bundle.js")
   let indexHtml = readFile(slugOut / "index.html")
   if "bootstrap.min.css" in indexHtml:
     fail("index.html must link the merged bundle.css, not bootstrap.min.css separately")
   # vendored bootstrap.min.css is merged into the bundle, not emitted ...
-  if fileExists(slugOut / "assets" / "bootstrap.min.css"):
+  if fileExists(slugOut / "cache" / "bootstrap.min.css"):
     fail("merged bootstrap.min.css must not be emitted alongside bundle.css")
   # merged CSS sources are consumed by the bundle, not emitted separately
   for f in ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]:
-    if fileExists(slugOut / "assets" / f):
+    if fileExists(slugOut / "cache" / f):
       fail("merged `" & f & "` must not be emitted alongside bundle.css")
 
   # --- asset auto-discovery (no hardcoded filenames) ---
   # files not named under `assets.css`/`assets.js` are picked up
   # automatically: `extra.css` merges into the bundle, `extra.js` is
-  # minified in place, vendored `extra.min.js` is left alone
+  # merged into the bundle, vendored `extra.min.js` inlined raw
   writeFile(slugDir / "themes" / "default" / "assets" / "extra.css",
     ".extra-discovery {\n  color: red;\n}\n")
   writeFile(slugDir / "themes" / "default" / "assets" / "extra.js",
@@ -251,15 +251,19 @@ proc runTests() =
     " --out " & quoteShell(discOut))
   if buildResDisc.exitCode != 0:
     fail("`stupidgreen build` (discovery) failed: " & buildResDisc.output)
-  if ".extra-discovery" notin readFile(discOut / "assets" / "bundle.css"):
+  if ".extra-discovery" notin readFile(discOut / "cache" / "bundle.css"):
     fail("unlisted extra.css should be merged into bundle.css")
-  if fileExists(discOut / "assets" / "extra.css"):
+  if fileExists(discOut / "cache" / "extra.css"):
     fail("merged extra.css must not be emitted alongside bundle.css")
-  if "extra discovery fixture" in readFile(discOut / "assets" / "extra.js"):
-    fail("unlisted extra.js should be minified in place (comment stripped)")
-  if readFile(discOut / "assets" / "extra.min.js") !=
-      readFile(slugDir / "themes" / "default" / "assets" / "extra.min.js"):
-    fail("unlisted *.min.js must be left alone")
+  let discJs = readFile(discOut / "cache" / "bundle.js")
+  if "extra discovery fixture" in discJs:
+    fail("extra.js should be minified into bundle.js (comment stripped)")
+  if "extraDiscovery" notin discJs:
+    fail("unlisted extra.js should be merged into bundle.js")
+  if fileExists(discOut / "cache" / "extra.js"):
+    fail("merged extra.js must not be emitted alongside bundle.js")
+  if fileExists(discOut / "cache" / "extra.min.js"):
+    fail("merged extra.min.js must not be emitted alongside bundle.js")
 
   # --- configs predating the `assets` section bundle via discovery ---
   let cfgBeforeStrip = readFile(slugConfig)
@@ -273,9 +277,9 @@ proc runTests() =
     " --out " & quoteShell(noSectionOut))
   if buildResNoSection.exitCode != 0:
     fail("`stupidgreen build` (no assets section) failed: " & buildResNoSection.output)
-  if "--bs-blue" notin readFile(noSectionOut / "assets" / "bundle.css"):
+  if "--bs-blue" notin readFile(noSectionOut / "cache" / "bundle.css"):
     fail("section-less configs should merge bootstrap into bundle.css via discovery")
-  assertContains(noSectionOut, "index.html", "assets/bundle.css")
+  assertContains(noSectionOut, "index.html", "cache/bundle.css")
   writeFile(slugConfig, cfgBeforeStrip)
 
   # `bundle: false` disables the pipeline entirely
@@ -285,9 +289,9 @@ proc runTests() =
     " --out " & quoteShell(noBundleOut))
   if buildResNoBundle.exitCode != 0:
     fail("`stupidgreen build` (bundle: false) failed: " & buildResNoBundle.output)
-  if fileExists(noBundleOut / "assets" / "bundle.css"):
-    fail("bundle: false must not emit assets/bundle.css")
-  assertFile(noBundleOut, "assets/style.css")
+  if fileExists(noBundleOut / "cache" / "bundle.css"):
+    fail("bundle: false must not emit cache/bundle.css")
+  assertFile(noBundleOut, "cache/style.css")
   writeFile(slugConfig, readFile(slugConfig).replace("bundle: false", "bundle: true"))
 
   # a listed-but-missing asset fails the build

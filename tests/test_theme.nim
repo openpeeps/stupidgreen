@@ -123,12 +123,12 @@ proc runTests() =
   assertFile(outDir, "index.html")
   assertFile(outDir, "posts/hello-world/index.html")
   assertFile(outDir, "about/index.html")
-  assertFile(outDir, "assets/bundle.css")
+  assertFile(outDir, "cache/bundle.css")
   assertContains(outDir, "index.html", "Hello World")
   assertContains(outDir, "posts/hello-world/index.html", "Welcome to your brand new")
   # skeleton style.css is merged into the bundle, not emitted separately
-  assertContains(outDir, "assets/bundle.css", ".post-content")
-  if fileExists(outDir / "assets" / "style.css"):
+  assertContains(outDir, "cache/bundle.css", ".post-content")
+  if fileExists(outDir / "cache" / "style.css"):
     fail("merged style.css must not be emitted alongside bundle.css")
 
   echo "OK: all stupidgreen theme tests passed"
