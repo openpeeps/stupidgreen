@@ -4,8 +4,8 @@ html data-bs-theme="dark" data-lang=$this["currentLang"]
     title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
     meta name="viewport" content="width=device-width, initial-scale=1"
     meta name="description" content=$this["config"]["metadata"]["description"]
-    link rel="icon" href=url("/cache/favicon-32x32.png") type="image/x-icon"
-    link rel="stylesheet" href=url("/cache/bundle.css")
+    link rel="icon" href=url("/assets/favicon-32x32.png") type="image/x-icon"
+    link rel="stylesheet" href=url("/assets/bundle.css")
     if $this["config"]["mode"] != "pages":
       if $this["config"]["feed"]["enable"]:
         if $this["config"]["feed"]["kind"] == "atom":
@@ -23,7 +23,7 @@ html data-bs-theme="dark" data-lang=$this["currentLang"]
 body:before {
   content: "";
   display: block;
-  background-image: url(""" & url("/cache/image.png") & """);
+  background-image: url(""" & url("/assets/image.png") & """);
   background-repeat: repeat;
   background-size: 257px auto;
   position: fixed;
@@ -56,7 +56,7 @@ body:before {
           " &mdash; Made by Humans from "
           a href="https://openpeeps.dev": "OpenPeeps"
 
-    script type="text/javascript" src=url("/cache/bundle.js")
+    script type="text/javascript" src=url("/assets/bundle.js")
     @javascript
 document.addEventListener('DOMContentLoaded', () => {
   UI.init({

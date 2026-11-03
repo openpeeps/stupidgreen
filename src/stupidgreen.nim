@@ -74,7 +74,7 @@ initApp(skipLocalConfig = true):
     # init Markdown Service
     markdown.init(App)
 
-  serveAssets "cache": 
+  serveAssets "assets": 
     when defined release:
       # Note: theme assets are NOT embedded as servable files. The embedded
       # default theme bundle only seeds `<project>/themes/default/`; the

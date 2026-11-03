@@ -4,14 +4,13 @@
 #          Made by Humans from OpenPeeps
 
 ## Static asset pipeline for `stupidgreen build` and `stupidgreen run`,
-## powered by Squeezy.
-## The stylesheets under `assets/` are merged into `assets/bundle.css`
-## (custom styles minified, `.min.css` vendored files inlined raw, first);
-## each script under `assets/` is bundled independently, in place
-## (minified, except vendored `.min.js` unless listed). Files named under
-## `assets.css`/`assets.js` come first, in order; the rest is discovered
-## automatically. Any failure (a listed file missing from `assets/`, a
-## parse/bundle error) fails the command.
+## powered by Squeezy. Runs over a merged view of all theme/project
+## assets: every stylesheet is merged into `bundle.css` (custom styles
+## minified, `.min.css` vendored files inlined raw, first) and every
+## script into `bundle.js` (each minified on its own, exports stripped,
+## then concatenated). Files named under `assets.css`/`assets.js` come
+## first, in order; the rest is discovered automatically. Any failure
+## (a listed file missing, a parse/bundle error) fails the command.
 
 import std/[os, strutils, algorithm]
 

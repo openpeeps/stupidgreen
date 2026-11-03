@@ -36,14 +36,14 @@ initService Tim[Global]:
       ## with `/<lang>` for non-default languages.
 
     proc siteUrl*(path: string): string =
-      ## Resolves a root-relative path (`/cache/bundle.css`) against the
+      ## Resolves a root-relative path (`/assets/bundle.css`) against the
       ## site base URL. Absolute URLs pass through untouched; a missing
       ## leading slash is added (empty path resolves to the homepage `/`).
       ## In dev the base is empty, so plain root-relative paths are
       ## returned (served by the dev server). When the languages feature
       ## is active and the current render language is non-default,
       ## content paths gain a `/<lang>` prefix (`/search` -> `/fr/search`);
-      ## `/cache/*` never does (static files live unprefixed).
+      ## `/assets/*` never does (static files live unprefixed).
       if isAbsoluteUrl(path):
         return path
       let p =
@@ -57,7 +57,7 @@ initService Tim[Global]:
         return timBaseUrl & p
       if p == "/":
         return timBaseUrl & "/" & cur
-      if p == "/cache" or p.startsWith("/cache/"):
+      if p == "/assets" or p.startsWith("/assets/"):
         return timBaseUrl & p
       for code in globalStupidGreenConfig.supportedLangCodes():
         if p == "/" & code or p.startsWith("/" & code & "/"):
@@ -268,7 +268,7 @@ initService Tim[Global]:
             "title": globalStupidGreenConfig.metadata.title.get("StupidGreen"),
             "url": globalStupidGreenConfig.metadata.url,
             "baseUrl": "",
-            "logo": globalStupidGreenConfig.metadata.logo.get("/cache/stupidgreen.png"),
+            "logo": globalStupidGreenConfig.metadata.logo.get("/assets/stupidgreen.png"),
             "hasLogo": globalStupidGreenConfig.metadata.logo.isSome(),
             "hasNotifications": globalStupidGreenConfig.header.notification.isSome()
           }
@@ -354,7 +354,7 @@ initService Tim[Global]:
       site["title"] = newJString(globalStupidGreenConfig.metadata.title.get("StupidGreen"))
       site["url"] = newJString(globalStupidGreenConfig.metadata.url)
       site["baseUrl"] = newJString(globalStupidGreenConfig.metadata.url)
-      site["logo"] = newJString(globalStupidGreenConfig.metadata.logo.get("/cache/stupidgreen.png"))
+      site["logo"] = newJString(globalStupidGreenConfig.metadata.logo.get("/assets/stupidgreen.png"))
       site["hasLogo"] = newJBool(globalStupidGreenConfig.metadata.logo.isSome())
       site["hasNotifications"] = newJBool(globalStupidGreenConfig.header.notification.isSome())
       data["site"] = site

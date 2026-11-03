@@ -224,26 +224,24 @@ type
 
   AssetsSettings* = object
     ## Asset bundling settings (`stupidgreen build` and `stupidgreen run`
-    ## pipe the declared files through Squeezy). Only listed files are
-    ## processed — every other file under `assets/` is copied raw as before.
+    ## pipe the declared files through Squeezy into `bundle.css` /
+    ## `bundle.js`). Files consumed by bundling never ship standalone.
     bundle*: bool = true
       ## Whether to bundle assets on `build` and `run` (opt-out with `false`)
     css*: seq[string] = @[]
-      ## Stylesheets to merge, in order, into `assets/bundle.css`
-      ## (relative to the merged `assets/` dir, e.g. `"style.css"`).
-      ## Listed files come first, in order; every other `*.css` in
-      ## `assets/` is appended automatically (vendored `*.min.css`
-      ## first, then the rest, each alphabetical). Entries ending in
-      ## `.min.css` are inlined raw — already minified, no
-      ## re-serialization — so keep them first (cascade order,
-      ## `@charset` stays at the top).
+      ## Stylesheets to merge, in order, into `bundle.css`
+      ## (relative to the theme `assets/` dirs, e.g. `"style.css"`).
+      ## Listed files come first, in order; every other `*.css` found
+      ## is appended automatically (vendored `*.min.css` first, then the
+      ## rest, each alphabetical). Entries ending in `.min.css` are
+      ## inlined raw — already minified, no re-serialization — so keep
+      ## them first (cascade order, `@charset` stays at the top).
     js*: seq[string] = @[]
-      ## Scripts to bundle, each independently and in place
-      ## (relative to the merged `assets/` dir, e.g. `"app.js"`).
-      ## Listed files are always processed; every other `*.js` in
-      ## `assets/` is picked up automatically, except vendored
-      ## `*.min.js` (already minified — list one explicitly to
-      ## force it through the pipeline).
+      ## Scripts to merge, in order, into `bundle.js`
+      ## (relative to the theme `assets/` dirs, e.g. `"app.js"`).
+      ## Listed files come first, in order; every other `*.js` found is
+      ## appended automatically (vendored `*.min.js` first, then the
+      ## rest, each alphabetical) and inlined raw.
 
   FeedSettings* = object
     ## Settings for the blog feed

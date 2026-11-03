@@ -172,8 +172,9 @@ cp themes/default/layouts/base.timl themes/minimal/layouts/
 
 ### Asset pipeline
 On `build` — and at startup on `run`, so the dev server serves the same
-files — every stylesheet in `assets/` is merged into `cache/bundle.css`
-and every script into `cache/bundle.js` (minified) — powered by
+files — every stylesheet in the theme `assets/` dirs is merged into
+`assets/bundle.css` and every script into `assets/bundle.js` (minified) —
+powered by
 [Squeezy](https://github.com/openpeeps/squeezy). Files named under
 `assets.css`/`assets.js` come first, in listed order; every other
 `*.css`/`*.js` in `assets/` is picked up automatically (vendored
@@ -194,14 +195,16 @@ Custom themes link the two bundles — only `bundle: false` disables the
 pipeline (and keeps the old copy-everything behavior):
 
 ```timl
-link rel="stylesheet" href=url("/cache/bundle.css")
-script type="text/javascript" src=url("/cache/bundle.js")
+link rel="stylesheet" href=url("/assets/bundle.css")
+script type="text/javascript" src=url("/assets/bundle.js")
 ```
 
-Bundled sources are never copied as standalone files: `cache/` ships
-`bundle.css`, `bundle.js` and the remaining static files (images,
-fonts, ...). Theme assets keep their source location
-(`themes/<name>/assets/`) and are still served from there.
+Bundled sources are never copied as standalone files: the build output
+ships `bundle.css`, `bundle.js` and the remaining static files (images,
+fonts, ...) under `assets/`. Theme assets keep their source location
+(`themes/<name>/assets/`). When running the dev server, the same merged
+view is staged into the project `cache/` dir (gitignored scratch —
+safe to delete) and served from there.
 
 Existing projects (whose config has no `assets` section) get the same
 behavior automatically: bundling is on and every stylesheet/script is

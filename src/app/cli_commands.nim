@@ -176,7 +176,7 @@ proc seedDefaultTheme*(projectPath: string) =
 proc initThemeDisks*(projectPath: string) =
   ## Registers runtime storage disks for public assets:
   ## `project-cache` (read/write), `theme-active` and `theme-default`
-  ## (read-only). Used to serve `/cache/*` with project-first precedence.
+  ## (read-only). Used to serve `/assets/*` with project-first precedence.
   storage.init(App)
   storage().addDisk("project-cache",
     newLocalDriver(projectPath / "cache"))
@@ -189,7 +189,7 @@ proc initThemeDisks*(projectPath: string) =
     PolicyRules(readOnly: true))
 
 proc resolvePublicAsset*(rel: string): string =
-  ## Resolves a public `/cache/...` path to an absolute file path,
+  ## Resolves a public `/assets/...` path to an absolute file path,
   ## probing project assets first, then the active theme, then the
   ## default (fallback) theme. Returns "" when no disk provides it.
   let relPath = normalizedPath(rel.strip(chars = {'/'}, leading = true))
@@ -532,12 +532,12 @@ proc buildCommand*(v: Values) =
 
   createDir(outputPath)
 
-  # asset pipeline: every public asset lands in `cache/` except the
+  # asset pipeline: every public asset lands in `assets/` except the
   # sources consumed by bundling (they ship only inside `bundle.css` /
   # `bundle.js`). Configs without the `assets` section are backfilled
   # with the standard lists in `loadStupidGreen`; only an explicit
   # `bundle: false` keeps the raw-copy behavior.
-  materializeAssets(outputPath / "cache", globalStupidGreenConfig.assets)
+  materializeAssets(outputPath / "assets", globalStupidGreenConfig.assets)
 
   proc configJson(): JsonNode =
     ## Converts the global StupidGreen configuration to a JsonNode

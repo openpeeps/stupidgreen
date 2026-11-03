@@ -103,8 +103,8 @@ proc runTests() =
   assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/tags/stupidgreen")
   assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/search")
   assertContains(outDir, "ro/posts/hello-world/index.html", "/ro/feed.xml")
-  assertContains(outDir, "ro/posts/hello-world/index.html", "/cache/bundle.css")
-  assertNotContains(outDir, "ro/posts/hello-world/index.html", "/ro/cache")
+  assertContains(outDir, "ro/posts/hello-world/index.html", "/assets/bundle.css")
+  assertNotContains(outDir, "ro/posts/hello-world/index.html", "/ro/assets")
   assertContains(outDir, "posts/hello-world/index.html", "/tags/stupidgreen")
   assertNotContains(outDir, "posts/hello-world/index.html", "/ro/tags")
 

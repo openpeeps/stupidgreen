@@ -30,7 +30,7 @@ proc runTests() =
   if execCmdEx(quoteShell(binPath) & " build " & quoteShell(dir)).exitCode != 0:
     fail("`stupidgreen build` with subpath URL failed")
   let index = readFile(dir / "_build" / "index.html")
-  if "https://mysite.com/docs/cache/bundle.css" notin index:
+  if "https://mysite.com/docs/assets/bundle.css" notin index:
     fail("expected absolute baseUrl asset link in index.html")
   if "mysite.com//" in index:
     fail("double slashes in generated URLs")

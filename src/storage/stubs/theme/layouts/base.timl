@@ -4,7 +4,7 @@ html lang="en" data-lang=$this["currentLang"]
     title: $this["config"]["metadata"]["title"] & " &mdash; " & $this["config"]["metadata"]["description"]
     meta name="viewport" content="width=device-width, initial-scale=1"
     meta name="description" content=$this["config"]["metadata"]["description"]
-    link rel="stylesheet" href=url("/cache/bundle.css")
+    link rel="stylesheet" href=url("/assets/bundle.css")
     if $this["config"]["mode"] != "pages":
       if $this["config"]["feed"]["enable"]:
         if $this["config"]["feed"]["kind"] == "atom":
