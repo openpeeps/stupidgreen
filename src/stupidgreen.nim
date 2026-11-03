@@ -41,7 +41,7 @@ initApp(skipLocalConfig = true):
     theme string(name):
       ## Create a new blank SG theme in ./<name>
 
-    run path(project), ?bool("--sync"), ?port("--port"), ?bool("--devMode"):
+    run path(project), ?bool("--sync"), ?port("--port"):
       ## Create a new SG instance for given project
 
     build path(project), ?string("--out"):

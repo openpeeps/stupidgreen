@@ -200,9 +200,9 @@ link rel="stylesheet" href=url("/assets/bundle.css")
 ```
 
 Existing projects (whose config has no `assets` section) keep the old
-behavior: assets are copied raw. Add the section to opt in. With
-`--devMode` theme files are still served live from source; the bundle is
-rebuilt at startup, so restart to pick up asset edits.
+behavior: assets are copied raw. Add the section to opt in. The dev
+server (`run`) rebuilds the bundle at startup, so restart it to pick up
+asset edits.
 
 ### Post front matter
 
