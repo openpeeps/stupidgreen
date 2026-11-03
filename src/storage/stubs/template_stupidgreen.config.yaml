@@ -53,13 +53,14 @@ content:
 pagination:
   per_page: 10
 assets:
-  # Static asset pipeline (Squeezy). On `build` the listed stylesheets
-  # are merged in order into `assets/bundle.css` and each listed script
-  # is bundled independently, in place (minified). Entries ending in
-  # `.min.css` (e.g. vendored `bootstrap.min.css`) are inlined raw —
-  # keep them first (cascade order, `@charset` stays at the top).
-  # Only listed files are processed; everything else under `assets/`
-  # is copied raw. Any failure (missing file, parse error) fails the build.
+  # Static asset pipeline (Squeezy). On `build` (and at startup on `run`)
+  # the stylesheets below are merged in order into `assets/bundle.css`
+  # and each script is bundled independently, in place (minified).
+  # Listed files come first, in order; any other `*.css`/`*.js` found in
+  # `assets/` is picked up automatically (vendored `*.min.css` inlined
+  # raw and first for the cascade, `*.min.js` left alone unless listed).
+  # Only `bundle: false` disables the pipeline. Any failure (a listed
+  # file missing, a parse error) fails the command.
   bundle: true
   css: ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]
   js: ["app.js"]

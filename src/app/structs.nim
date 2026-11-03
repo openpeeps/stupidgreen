@@ -231,12 +231,19 @@ type
     css*: seq[string] = @[]
       ## Stylesheets to merge, in order, into `assets/bundle.css`
       ## (relative to the merged `assets/` dir, e.g. `"style.css"`).
-      ## Entries ending in `.min.css` (e.g. vendored `bootstrap.min.css`)
-      ## are inlined raw — already minified, no re-serialization — so
-      ## keep them first (cascade order, `@charset` stays at the top).
+      ## Listed files come first, in order; every other `*.css` in
+      ## `assets/` is appended automatically (vendored `*.min.css`
+      ## first, then the rest, each alphabetical). Entries ending in
+      ## `.min.css` are inlined raw — already minified, no
+      ## re-serialization — so keep them first (cascade order,
+      ## `@charset` stays at the top).
     js*: seq[string] = @[]
       ## Scripts to bundle, each independently and in place
-      ## (relative to the merged `assets/` dir, e.g. `"app.js"`)
+      ## (relative to the merged `assets/` dir, e.g. `"app.js"`).
+      ## Listed files are always processed; every other `*.js` in
+      ## `assets/` is picked up automatically, except vendored
+      ## `*.min.js` (already minified — list one explicitly to
+      ## force it through the pipeline).
     mangle*: bool = false
       ## Whether to mangle JS identifiers (implies minify)
     sourcemap*: bool = false

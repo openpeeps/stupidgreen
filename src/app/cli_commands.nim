@@ -53,12 +53,18 @@ const
 proc loadStupidGreen(projectPath: string) =
   ## Loads the StupidGreen configuration from the project directory
   let configPath = projectPath / "stupidgreen.config"
+  var rawConfig = ""
+  var isJson = false
   if fileExists(configPath & ".yml"):
-    globalStupidGreenConfig = parseYAML(readFile(configPath & ".yml"), StupidGreenConfig)
+    rawConfig = readFile(configPath & ".yml")
+    globalStupidGreenConfig = parseYAML(rawConfig, StupidGreenConfig)
   elif fileExists(configPath & ".yaml"):
-    globalStupidGreenConfig = parseYAML(readFile(configPath & ".yaml"), StupidGreenConfig)
+    rawConfig = readFile(configPath & ".yaml")
+    globalStupidGreenConfig = parseYAML(rawConfig, StupidGreenConfig)
   elif fileExists(configPath & ".json"):
-    globalStupidGreenConfig = fromJson(readFile(configPath & ".json"), StupidGreenConfig)
+    rawConfig = readFile(configPath & ".json")
+    isJson = true
+    globalStupidGreenConfig = fromJson(rawConfig, StupidGreenConfig)
   else:
     display("No StupidGreen Config found in the current directory (.yml/.yaml/.json)")
     QuitFailure.quit
@@ -80,6 +86,33 @@ proc loadStupidGreen(projectPath: string) =
     globalStupidGreenConfig.server.port = 8000
   if globalStupidGreenConfig.server.address.len == 0:
     globalStupidGreenConfig.server.address = "127.0.0.1"
+  # Asset pipeline defaults: typed parsing zeroes absent keys (Nim field
+  # defaults do not survive), so a config without the `bundle:` flag would
+  # silently skip bundling even with explicit lists. Bundling is on unless
+  # explicitly disabled; empty lists mean auto-discovery (see
+  # `bundleBuildAssets`), so no filenames are hardcoded here.
+  try:
+    var hasBundleKey = false
+    if isJson:
+      let node = fromJson(rawConfig)
+      if node != nil and node.kind == JObject and node.fields.hasKey("assets"):
+        let sub = node.fields["assets"]
+        hasBundleKey = sub != nil and sub.kind == JObject and
+          sub.fields.hasKey("bundle")
+    else:
+      let node = parseYAMLNode(rawConfig)
+      if node != nil and node.kind == yamlObject and node.objValue.hasKey("assets"):
+        let sub = node.objValue["assets"]
+        hasBundleKey = sub != nil and sub.kind == yamlObject and
+          sub.objValue.hasKey("bundle")
+    if not hasBundleKey:
+      # no section, or a section without the flag: bundling is on unless
+      # explicitly disabled (an explicit `bundle: false` has the key).
+      globalStupidGreenConfig.assets.bundle = true
+  except CatchableError:
+    # unparseable here: the typed parse above already succeeded, so leave
+    # the parsed values untouched rather than guessing.
+    discard
 
 const defaultThemeName* = "default"
   ## Name of the built-in fallback theme shipped with StupidGreen
@@ -522,9 +555,9 @@ proc buildCommand*(v: Values) =
 
   # asset pipeline (Squeezy): merges `assets.css` into `assets/bundle.css`
   # (custom styles minified, `.min.css` vendored files inlined raw)
-  # and bundles each `assets.js` script in place. Old configs without the
-  # `assets` section keep the zero value (`bundle: false`) and skip this,
-  # preserving the raw-copy behavior.
+  # and bundles each `assets.js` script in place. Configs without the
+  # `assets` section are backfilled with the standard lists in
+  # `loadStupidGreen`; only an explicit `bundle: false` skips this.
   if globalStupidGreenConfig.assets.bundle:
     bundleBuildAssets(outputPath / "assets", globalStupidGreenConfig.assets)
 

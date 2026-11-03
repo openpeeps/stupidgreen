@@ -171,38 +171,37 @@ cp themes/default/layouts/base.timl themes/minimal/layouts/
 
 ### Asset pipeline
 On `build` — and at startup on `run`, so the dev server serves the same
-files — the stylesheets listed under `assets.css` are merged in order
-into `assets/bundle.css`, and each script under `assets.js` is bundled
-independently, in place (minified) — powered by
-[Squeezy](https://github.com/openpeeps/squeezy). Entries ending in
-`.min.css` (e.g. vendored `bootstrap.min.css`) are inlined raw, already
-minified, so keep them first: cascade order is preserved and `@charset`
-stays at the top. Only listed files are processed; everything else under
-`assets/` is copied raw. The emitted output is validated, and any
-failure (a listed file missing, a bundling or validation error) fails
-the command.
+files — the stylesheets in `assets/` are merged into `assets/bundle.css`,
+and each script in `assets/` is bundled independently, in place
+(minified) — powered by [Squeezy](https://github.com/openpeeps/squeezy).
+Files named under `assets.css`/`assets.js` come first, in listed order;
+every other `*.css`/`*.js` in `assets/` is picked up automatically
+(vendored `*.min.css` is inlined raw and first, so keep frameworks
+first for the cascade and `@charset`; `*.min.js` is left alone unless
+listed). The emitted output is validated, and any failure (a listed
+file missing, a bundling or validation error) fails the command.
 
 ```yaml
 # stupidgreen.config.yaml
 assets:
   bundle: true                          # opt out with `false`
-  css: ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]  # merged -> bundle.css
+  css: ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]  # merged -> bundle.css, in order
   js: ["app.js"]                        # each bundled in place
   mangle: false                         # mangle JS identifiers
   sourcemap: false                      # emit `.map` next to bundled JS
 ```
 
-Custom themes link the merged stylesheet and declare their own lists —
-only what you list gets processed:
+Custom themes link the merged stylesheet — only `bundle: false`
+disables the pipeline:
 
 ```timl
 link rel="stylesheet" href=url("/assets/bundle.css")
 ```
 
-Existing projects (whose config has no `assets` section) keep the old
-behavior: assets are copied raw. Add the section to opt in. The dev
-server (`run`) rebuilds the bundle at startup, so restart it to pick up
-asset edits.
+Existing projects (whose config has no `assets` section) get the same
+behavior automatically: bundling is on and every stylesheet/script is
+discovered. The dev server (`run`) rebuilds the bundle at startup, so
+restart it to pick up asset edits.
 
 ### Post front matter
 

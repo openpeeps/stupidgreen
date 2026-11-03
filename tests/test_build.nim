@@ -229,6 +229,46 @@ proc runTests() =
   # ... and the merged sources remain as raw copies (old templates keep working)
   assertFile(slugOut, "assets/style.css")
 
+  # --- asset auto-discovery (no hardcoded filenames) ---
+  # files not named under `assets.css`/`assets.js` are picked up
+  # automatically: `extra.css` merges into the bundle, `extra.js` is
+  # minified in place, vendored `extra.min.js` is left alone
+  writeFile(slugDir / "themes" / "default" / "assets" / "extra.css",
+    ".extra-discovery {\n  color: red;\n}\n")
+  writeFile(slugDir / "themes" / "default" / "assets" / "extra.js",
+    "// extra discovery fixture\nfunction extraDiscovery() {\n  return 42;\n}\n")
+  writeFile(slugDir / "themes" / "default" / "assets" / "extra.min.js",
+    "// vendored stub\nfunction extraMin()  {  return 7;  }\n")
+  let discOut = slugDir / "discbuild"
+  let buildResDisc = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir) &
+    " --out " & quoteShell(discOut))
+  if buildResDisc.exitCode != 0:
+    fail("`stupidgreen build` (discovery) failed: " & buildResDisc.output)
+  if ".extra-discovery" notin readFile(discOut / "assets" / "bundle.css"):
+    fail("unlisted extra.css should be merged into bundle.css")
+  if "extra discovery fixture" in readFile(discOut / "assets" / "extra.js"):
+    fail("unlisted extra.js should be minified in place (comment stripped)")
+  if readFile(discOut / "assets" / "extra.min.js") !=
+      readFile(slugDir / "themes" / "default" / "assets" / "extra.min.js"):
+    fail("unlisted *.min.js must be left alone")
+
+  # --- configs predating the `assets` section bundle via discovery ---
+  let cfgBeforeStrip = readFile(slugConfig)
+  let aStart = cfgBeforeStrip.find("\nassets:")
+  let fStart = cfgBeforeStrip.find("\nfeed:")
+  if aStart < 0 or fStart < 0 or fStart < aStart:
+    fail("test setup: `assets:`/`feed:` sections not found in config")
+  writeFile(slugConfig, cfgBeforeStrip[0 ..< aStart] & cfgBeforeStrip[fStart .. ^1])
+  let noSectionOut = slugDir / "nosectionbuild"
+  let buildResNoSection = execCmdEx(quoteShell(binPath) & " build " & quoteShell(slugDir) &
+    " --out " & quoteShell(noSectionOut))
+  if buildResNoSection.exitCode != 0:
+    fail("`stupidgreen build` (no assets section) failed: " & buildResNoSection.output)
+  if "--bs-blue" notin readFile(noSectionOut / "assets" / "bundle.css"):
+    fail("section-less configs should merge bootstrap into bundle.css via discovery")
+  assertContains(noSectionOut, "index.html", "assets/bundle.css")
+  writeFile(slugConfig, cfgBeforeStrip)
+
   # `bundle: false` disables the pipeline entirely
   writeFile(slugConfig, readFile(slugConfig).replace("bundle: true", "bundle: false"))
   let noBundleOut = slugDir / "nobuild"
