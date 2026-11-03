@@ -120,10 +120,10 @@ proc runTests() =
     readFile(dir / "themes" / "default" / "views" / "index.timl") &
     "\n<!-- CUSTOM THEME MARKER -->\n")
   writeFile(dir / "themes" / "custom" / "assets" / "custom.css",
-    "/* custom theme stylesheet */\n")
+    ".custom-theme {\n  color: blue;\n}\n")
   # project assets always win over theme assets
   writeFile(dir / "assets" / "custom.css",
-    "/* project override */\n")
+    ".project-override {\n  color: red;\n}\n")
   let themeConfig = dir / "stupidgreen.config.yaml"
   writeFile(themeConfig,
     readFile(themeConfig).replace("theme: \"default\"", "theme: \"custom\""))
@@ -134,11 +134,17 @@ proc runTests() =
   assertContains(outDir, "index.html", "CUSTOM THEME MARKER")
   # ... while views missing from the custom theme fall back to default
   assertContains(outDir, "posts/hello-world/index.html", "Welcome to your brand new")
-  # theme assets land in the public dir (custom + fallback default files) ...
-  assertFile(outDir, "assets/custom.css")
-  assertFile(outDir, "assets/bootstrap.min.css")
-  # ... and project files win over theme files with the same name
-  assertContains(outDir, "assets/custom.css", "project override")
+  # theme CSS is merged into the bundle (not emitted separately) ...
+  let customBundle = readFile(outDir / "assets" / "bundle.css")
+  if ".project-override" notin customBundle:
+    fail("project custom.css should win and land in bundle.css")
+  if ".custom-theme" in customBundle:
+    fail("theme custom.css should lose to the project override")
+  if fileExists(outDir / "assets" / "custom.css"):
+    fail("merged custom.css must not be emitted alongside bundle.css")
+  # ... and non-CSS assets (images, fonts, vendored JS) are still copied
+  assertFile(outDir, "assets/bootstrap.min.js")
+  assertFile(outDir, "assets/stupidgreen.png")
 
   # --- themes (unknown theme fails with a clear error) ---
   writeFile(themeConfig,
@@ -222,12 +228,13 @@ proc runTests() =
   let indexHtml = readFile(slugOut / "index.html")
   if "bootstrap.min.css" in indexHtml:
     fail("index.html must link the merged bundle.css, not bootstrap.min.css separately")
-  # vendored sources are still copied raw alongside the bundle ...
-  if readFile(slugOut / "assets" / "bootstrap.min.css") !=
-      readFile(slugDir / "themes" / "default" / "assets" / "bootstrap.min.css"):
-    fail("bootstrap.min.css must be copied raw, byte-identical")
-  # ... and the merged sources remain as raw copies (old templates keep working)
-  assertFile(slugOut, "assets/style.css")
+  # vendored bootstrap.min.css is merged into the bundle, not emitted ...
+  if fileExists(slugOut / "assets" / "bootstrap.min.css"):
+    fail("merged bootstrap.min.css must not be emitted alongside bundle.css")
+  # merged CSS sources are consumed by the bundle, not emitted separately
+  for f in ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]:
+    if fileExists(slugOut / "assets" / f):
+      fail("merged `" & f & "` must not be emitted alongside bundle.css")
 
   # --- asset auto-discovery (no hardcoded filenames) ---
   # files not named under `assets.css`/`assets.js` are picked up
@@ -246,6 +253,8 @@ proc runTests() =
     fail("`stupidgreen build` (discovery) failed: " & buildResDisc.output)
   if ".extra-discovery" notin readFile(discOut / "assets" / "bundle.css"):
     fail("unlisted extra.css should be merged into bundle.css")
+  if fileExists(discOut / "assets" / "extra.css"):
+    fail("merged extra.css must not be emitted alongside bundle.css")
   if "extra discovery fixture" in readFile(discOut / "assets" / "extra.js"):
     fail("unlisted extra.js should be minified in place (comment stripped)")
   if readFile(discOut / "assets" / "extra.min.js") !=

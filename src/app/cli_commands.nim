@@ -555,11 +555,24 @@ proc buildCommand*(v: Values) =
 
   # asset pipeline (Squeezy): merges `assets.css` into `assets/bundle.css`
   # (custom styles minified, `.min.css` vendored files inlined raw)
-  # and bundles each `assets.js` script in place. Configs without the
-  # `assets` section are backfilled with the standard lists in
-  # `loadStupidGreen`; only an explicit `bundle: false` skips this.
+  # and bundles each `assets.js` script in place. Merged CSS sources are
+  # consumed by the bundle and pruned from the output below, so vendored
+  # frameworks don't ship twice. Configs without the `assets` section are
+  # backfilled with the standard lists in `loadStupidGreen`; only an
+  # explicit `bundle: false` skips this and keeps the raw-copy behavior.
   if globalStupidGreenConfig.assets.bundle:
     bundleBuildAssets(outputPath / "assets", globalStupidGreenConfig.assets)
+    var pruned = 0
+    for rel in resolveCssInputs(outputPath / "assets", globalStupidGreenConfig.assets.css):
+      let p = outputPath / "assets" / rel
+      if fileExists(p):
+        try:
+          removeFile(p)
+          inc pruned
+        except CatchableError:
+          display("Could not prune bundled asset: " & rel)
+    if pruned > 0:
+      display("Pruned " & $pruned & " bundled CSS source(s) from assets/")
 
   proc configJson(): JsonNode =
     ## Converts the global StupidGreen configuration to a JsonNode

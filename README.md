@@ -192,11 +192,15 @@ assets:
 ```
 
 Custom themes link the merged stylesheet — only `bundle: false`
-disables the pipeline:
+disables the pipeline (and keeps the old copy-everything behavior):
 
 ```timl
 link rel="stylesheet" href=url("/assets/bundle.css")
 ```
+
+Merged stylesheets are consumed by the bundle: build output ships
+`bundle.css` only, plus the processed scripts and the remaining static
+files (images, fonts, vendored `*.min.js`).
 
 Existing projects (whose config has no `assets` section) get the same
 behavior automatically: bundling is on and every stylesheet/script is
