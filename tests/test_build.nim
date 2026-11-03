@@ -199,23 +199,33 @@ proc runTests() =
   assertContains(outCustom, "posts/my-awesome-post/index.html", "Title-derived slug")
 
   # --- asset pipeline (Squeezy CSS merge + JS bundling) ---
-  # the default `new` config merges style/sweetsyntax/print CSS into
-  # `assets/bundle.css` and bundles `assets/app.js` in place
+  # the default `new` config merges bootstrap/style/sweetsyntax/print CSS
+  # into `assets/bundle.css` (vendored `.min.css` inlined raw, custom
+  # styles minified) and bundles `assets/app.js` in place
   assertFile(slugOut, "assets/bundle.css")
   assertFile(slugOut, "assets/app.js")
   let bundleCss = readFile(slugOut / "assets" / "bundle.css")
   if "@media print" notin bundleCss:
     fail("bundle.css should contain the merged print.css (@media print)")
+  if "--bs-blue" notin bundleCss:
+    fail("bundle.css should contain the inlined bootstrap.min.css")
+  if "sourceMappingURL" in bundleCss:
+    fail("bundle.css must not carry bootstrap's stale sourceMappingURL ref")
+  if not bundleCss.startsWith("@charset"):
+    fail("bundle.css should start with bootstrap's @charset")
   var rawCssSize = 0
-  for f in ["style.css", "sweetsyntax.css", "print.css"]:
+  for f in ["bootstrap.min.css", "style.css", "sweetsyntax.css", "print.css"]:
     rawCssSize += getFileSize(slugDir / "themes" / "default" / "assets" / f)
   if getFileSize(slugOut / "assets" / "bundle.css") >= rawCssSize:
     fail("bundle.css should be smaller than the unmerged sources")
   assertContains(slugOut, "index.html", "assets/bundle.css")
-  # unlisted vendored files are copied raw, byte-identical ...
+  let indexHtml = readFile(slugOut / "index.html")
+  if "bootstrap.min.css" in indexHtml:
+    fail("index.html must link the merged bundle.css, not bootstrap.min.css separately")
+  # vendored sources are still copied raw alongside the bundle ...
   if readFile(slugOut / "assets" / "bootstrap.min.css") !=
       readFile(slugDir / "themes" / "default" / "assets" / "bootstrap.min.css"):
-    fail("unlisted bootstrap.min.css must be copied raw, byte-identical")
+    fail("bootstrap.min.css must be copied raw, byte-identical")
   # ... and the merged sources remain as raw copies (old templates keep working)
   assertFile(slugOut, "assets/style.css")
 

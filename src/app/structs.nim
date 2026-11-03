@@ -223,14 +223,17 @@ type
       ## The number of posts per page
 
   AssetsSettings* = object
-    ## Asset bundling settings (`stupidgreen build` pipes the declared
-    ## files through Squeezy). Only listed files are processed — every
-    ## other file under `assets/` is copied raw as before.
+    ## Asset bundling settings (`stupidgreen build` and `stupidgreen run`
+    ## pipe the declared files through Squeezy). Only listed files are
+    ## processed — every other file under `assets/` is copied raw as before.
     bundle*: bool = true
-      ## Whether to bundle assets on `build` (opt-out with `false`)
+      ## Whether to bundle assets on `build` and `run` (opt-out with `false`)
     css*: seq[string] = @[]
       ## Stylesheets to merge, in order, into `assets/bundle.css`
-      ## (relative to the merged `assets/` dir, e.g. `"style.css"`)
+      ## (relative to the merged `assets/` dir, e.g. `"style.css"`).
+      ## Entries ending in `.min.css` (e.g. vendored `bootstrap.min.css`)
+      ## are inlined raw — already minified, no re-serialization — so
+      ## keep them first (cascade order, `@charset` stays at the top).
     js*: seq[string] = @[]
       ## Scripts to bundle, each independently and in place
       ## (relative to the merged `assets/` dir, e.g. `"app.js"`)

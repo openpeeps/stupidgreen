@@ -422,6 +422,30 @@ proc runCommand*(v: Values) =
   else:
     copyThemeAssetsToPublic(projectPath)
 
+  # Asset pipeline (Squeezy), same as `build`: templates link
+  # `assets/bundle.css`, which only exists after bundling, so the dev
+  # server must produce it too — otherwise every page 404s its stylesheet.
+  # Listed sources missing from the public dir (devMode serves theme files
+  # live without copying) are materialized from the theme disks first;
+  # everything else keeps its live/raw serving behavior.
+  if globalStupidGreenConfig.assets.bundle:
+    let publicDir = projectPath / "assets"
+    createDir(publicDir)
+    for rel in globalStupidGreenConfig.assets.css & globalStupidGreenConfig.assets.js:
+      let dest = publicDir / rel
+      if not fileExists(dest):
+        let src = resolvePublicAsset(rel)
+        if src.len == 0:
+          displayError("Asset not found: `assets/" & rel &
+            "` (listed under `assets`)", quitProcess = true)
+        try:
+          createDir(dest.parentDir)
+          copyFile(src, dest)
+        except CatchableError as e:
+          displayError("Could not stage asset `assets/" & rel &
+            "`: " & e.msg, quitProcess = true)
+    bundleBuildAssets(publicDir, globalStupidGreenConfig.assets)
+
   # init ActivityPub federation (no-op when disabled in the config).
   # In pages mode federation is skipped entirely: it is part of the
   # blogging system.
@@ -508,6 +532,7 @@ proc buildCommand*(v: Values) =
   copyDiskAssets("project-assets")
 
   # asset pipeline (Squeezy): merges `assets.css` into `assets/bundle.css`
+  # (custom styles minified, `.min.css` vendored files inlined raw)
   # and bundles each `assets.js` script in place. Old configs without the
   # `assets` section keep the zero value (`bundle: false`) and skip this,
   # preserving the raw-copy behavior.
