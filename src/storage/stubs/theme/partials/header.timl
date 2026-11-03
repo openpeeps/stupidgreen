@@ -16,6 +16,6 @@ header.site-header
       select.language-switcher aria-label="Language" onchange="location=this.value"
         for $tr in items($this["translations"]):
           if $tr["lang"] != $this["currentLang"]:
-            option value=$tr["url"]: $tr["lang"]
+            option value=$this["site"]["baseUrl"] & $tr["url"]: $tr["lang"]
           else:
-            option value=$tr["url"] selected="selected": $tr["lang"]
+            option value=$this["site"]["baseUrl"] & $tr["url"] selected="selected": $tr["lang"]

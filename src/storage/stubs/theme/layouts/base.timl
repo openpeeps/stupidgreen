@@ -14,7 +14,7 @@ html lang="en" data-lang=$this["currentLang"]
     link rel="alternate" type="text/plain" title="llms.txt" href=url("/llms.txt")
     if $this["currentLang"] != "":
       for $tr in items($this["translations"]):
-        link rel="alternate" hreflang=$tr["lang"] href=url($tr["url"])
+        link rel="alternate" hreflang=$tr["lang"] href=$this["site"]["baseUrl"] & $tr["url"]
   body
     div.site
       // The `@view` macro is a special macro that injects
