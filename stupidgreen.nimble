@@ -19,10 +19,10 @@ requires "openparser >= 0.3.5"
 requires "watchout >= 0.2.2"
 requires "iconim >= 0.1.0"
 requires "activitypub >= 0.1.0"
-requires "impeller >= 0.1.0"
 requires "squeezy >= 0.1.1"
 
 # Supra is not really a dependency but we want to ensure
 # it's available when building the release version of StupidGreen
-# so we can use Supra's CLI `bundle` command to bundle static assets into the executable.
+# so we can use Supra's CLI `bundle` command to bundle static
+# assets into the executable.
 requires "supra >= 0.1.2"
