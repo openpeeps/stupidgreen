@@ -120,7 +120,7 @@ msgid "Copy page content as Markdown"
 msgstr ""
 
 #. Shown briefly after copying the page URL.
-#: src/storage/client/app.js
+#: src/themes/default/assets/app.js
 msgid "Copied!"
 msgstr ""
 
@@ -181,26 +181,26 @@ msgid "Something went wrong"
 msgstr ""
 
 #. Relative time in post metadata, e.g. "just now".
-#: src/storage/client/app.js
+#: src/themes/default/assets/app.js
 msgid "just now"
 msgstr ""
 
 #. {count} is the elapsed time; singular form (n == 1).
-#: src/storage/client/app.js
+#: src/themes/default/assets/app.js
 msgid "{count} minute ago"
 msgid_plural "{count} minutes ago"
 msgstr[0] ""
 msgstr[1] ""
 
 #. {count} is the elapsed time; singular form (n == 1).
-#: src/storage/client/app.js
+#: src/themes/default/assets/app.js
 msgid "{count} hour ago"
 msgid_plural "{count} hours ago"
 msgstr[0] ""
 msgstr[1] ""
 
 #. {count} is the elapsed time; singular form (n == 1).
-#: src/storage/client/app.js
+#: src/themes/default/assets/app.js
 msgid "{count} day ago"
 msgid_plural "{count} days ago"
 msgstr[0] ""

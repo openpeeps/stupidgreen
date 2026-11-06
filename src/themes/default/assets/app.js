@@ -1,1 +1,524 @@
-var UI=function(){"use strict";function e(e){return Array.isArray?Array.isArray(e):"[object Array]"===a(e)}function t(e){return null==e?"":function(e){if("string"==typeof e)return e;if("bigint"==typeof e)return e.toString();const t=e+"";return"0"==t&&1/e==-1/0?"-0":t}(e)}function n(e){return"string"==typeof e}function i(e){return"number"==typeof e}function s(e){return!0===e||!1===e||function(e){return r(e)&&null!==e}(e)&&"[object Boolean]"==a(e)}function r(e){return"object"==typeof e}function o(e){return null!=e}function c(e){return!e.trim().length}function a(e){return null==e?void 0===e?"[object Undefined]":"[object Null]":Object.prototype.toString.call(e)}const h="Invalid doc index: must be a non-negative integer within the bounds of the docs array",u=Object.prototype.hasOwnProperty;var l=class{constructor(e){this._keys=[],this._keyMap={};let t=0;e.forEach(e=>{const n=d(e);this._keys.push(n),this._keyMap[n.id]=n,t+=n.weight}),this._keys.forEach(e=>{e.weight/=t})}get(e){return this._keyMap[e]}keys(){return this._keys}toJSON(){return JSON.stringify(this._keys)}};function d(t){let i=null,s=null,r=null,o=1,c=null;if(n(t)||e(t))r=t,i=f(t),s=g(t);else{if(!u.call(t,"name"))throw new Error((e=>`Missing ${e} property in key`)("name"));const e=t.name;if(r=e,u.call(t,"weight")&&void 0!==t.weight&&(o=t.weight,o<=0))throw new Error((e=>`Property 'weight' in key '${e}' must be a positive integer`)(g(e)));i=f(e),s=g(e),c=t.getFn??null}return{path:i,id:s,weight:o,src:r,getFn:c}}function f(t){return e(t)?t:t.split(".")}function g(t){return e(t)?t.join("."):t}const m={useExtendedSearch:!1,useTokenSearch:!1,tokenize:void 0,tokenMatch:"any",getFn:function(r,c){const a=[];let h=!1;const u=(r,c,l,d)=>{if(o(r))if(c[l]){const f=r[c[l]];if(!o(f))return;if(l===c.length-1&&(n(f)||i(f)||s(f)||"bigint"==typeof f))a.push(void 0!==d?{v:t(f),i:d}:t(f));else if(e(f)){h=!0;for(let e=0,t=f.length;e<t;e+=1)u(f[e],c,l+1,e)}else c.length&&u(f,c,l+1,d)}else a.push(void 0!==d?{v:r,i:d}:r)};return u(r,n(c)?c.split("."):c,0),h?a:a[0]},ignoreLocation:!1,ignoreFieldNorm:!1,fieldNormWeight:1},p=Object.freeze({isCaseSensitive:!1,ignoreDiacritics:!1,includeScore:!1,keys:[],shouldSort:!0,sortFn:(e,t)=>e.score===t.score?e.idx<t.idx?-1:1:e.score<t.score?-1:1,includeMatches:!1,findAllMatches:!1,minMatchCharLength:1,location:0,threshold:.6,distance:100,...m});function y(e){return e>=9&&e<=13||32===e||160===e}var A=class{constructor({getFn:e=p.getFn,fieldNormWeight:t=p.fieldNormWeight}={}){this.norm=function(e=1,t=3){const n=new Map,i=Math.pow(10,t);return{get(t){let s=0,r=!1;for(let e=0;e<t.length;e++)y(t.charCodeAt(e))?r=!1:r||(s++,r=!0);if(0===s&&(s=1),n.has(s))return n.get(s);const o=Math.round(i/Math.pow(s,.5*e))/i;return n.set(s,o),o},clear(){n.clear()}}}(t,3),this.getFn=e,this.isCreated=!1,this.docs=[],this.keys=[],this._keysMap={},this.setIndexRecords()}setSources(e=[]){this.docs=e}setIndexRecords(e=[]){this.records=e}setKeys(e=[]){this.keys=e,this._keysMap={},e.forEach((e,t)=>{this._keysMap[e.id]=t})}create(){if(this.isCreated||!this.docs.length)return;this.isCreated=!0;const e=this.docs.length;this.records=new Array(e);let t=0;if(n(this.docs[0]))for(let n=0;n<e;n++){const e=this._createStringRecord(this.docs[n],n);e&&(this.records[t++]=e)}else for(let n=0;n<e;n++)this.records[t++]=this._createObjectRecord(this.docs[n],n);this.records.length=t,this.norm.clear()}add(e,t){if(!Number.isInteger(t)||t<0)throw new Error(h);if(n(e)){const n=this._createStringRecord(e,t);return n&&this.records.push(n),n}const i=this._createObjectRecord(e,t);return this.records.push(i),i}removeAt(e){if(!Number.isInteger(e)||e<0)throw new Error(h);for(let t=0,n=this.records.length;t<n;t+=1)if(this.records[t].i===e){this.records.splice(t,1);break}for(let t=0,n=this.records.length;t<n;t+=1)this.records[t].i>e&&(this.records[t].i-=1)}removeAll(e){const t=new Set;for(const n of e)Number.isInteger(n)&&n>=0&&t.add(n);if(0===t.size)return;this.records=this.records.filter(e=>!t.has(e.i));const n=Array.from(t).sort((e,t)=>e-t);for(const e of this.records){let t=0,i=n.length;for(;t<i;){const s=t+i>>>1;n[s]<e.i?t=s+1:i=s}e.i-=t}}getValueForItemAtKeyId(e,t){return e[this._keysMap[t]]}size(){return this.records.length}_createStringRecord(e,t){return!o(e)||c(e)?null:{v:e,i:t,n:this.norm.get(e)}}_createObjectRecord(i,s){const r={i:s,$:{}};for(let s=0,a=this.keys.length;s<a;s++){const a=this.keys[s],h=a.getFn?a.getFn(i):this.getFn(i,a.path);if(o(h))if(e(h)){const e=[];for(let i=0,s=h.length;i<s;i+=1){const s=h[i];if(o(s))if(n(s)){if(!c(s)){const t={v:s,i:i,n:this.norm.get(s)};e.push(t)}}else if(o(s.v)){const i=n(s.v)?s.v:t(s.v);if(!c(i)){const t={v:i,i:s.i,n:this.norm.get(i)};e.push(t)}}}r.$[s]=e}else if(n(h)&&!c(h)){const e={v:h,n:this.norm.get(h)};r.$[s]=e}}return r}toJSON(){return{keys:this.keys.map(({getFn:e,...t})=>t),records:this.records}}};function C(e,t,{getFn:n=p.getFn,fieldNormWeight:i=p.fieldNormWeight}={}){const s=new A({getFn:n,fieldNormWeight:i});return s.setKeys(e.map(d)),s.setSources(t),s.create(),s}function v(e,t,n,{location:i=p.location,distance:s=p.distance,threshold:r=p.threshold,findAllMatches:o=p.findAllMatches,minMatchCharLength:c=p.minMatchCharLength,includeMatches:a=p.includeMatches,ignoreLocation:h=p.ignoreLocation}={}){if(t.length>32)throw new Error(`Pattern length exceeds max of ${32}.`);const u=t.length,l=e.length,d=Math.max(0,Math.min(i,l));let f=r,g=d;const m=(e,t)=>{const n=e/u;if(h)return n;const i=Math.abs(d-t);return s?n+i/s:i?1:n},y=c>1||a,A=y?Array(l):[];let C;for(;(C=e.indexOf(t,g))>-1;){const e=m(0,C);if(f=Math.min(e,f),g=C+u,y){let e=0;for(;e<u;)A[C+e]=1,e+=1}}g=-1;let v=[],k=1,M=0,S=u+l;const x=1<<u-1;for(let t=0;t<u;t+=1){let i=0,s=S;for(;i<s;)m(t,d+s)<=f?i=s:S=s,s=Math.floor((S-i)/2+i);S=s;let r=Math.max(1,d-s+1);const c=o?l:Math.min(d+s,l)+u,a=Array(c+2);a[c+1]=(1<<t)-1;for(let i=c;i>=r;i-=1){const s=i-1,o=n[e[s]];if(a[i]=(a[i+1]<<1|1)&o,t&&(a[i]|=(v[i+1]|v[i])<<1|1|v[i+1]),a[i]&x&&(k=m(t,s),k<=f)){if(f=k,g=s,M=t,g<=d)break;r=Math.max(1,2*d-g)}}if(m(t+1,d)>f)break;v=a}if(y&&g>=0){const t=Math.min(l-1,g+u-1+M);for(let i=g;i<=t;i+=1)n[e[i]]&&(A[i]=1)}const E={isMatch:g>=0,score:Math.max(.001,k)};if(y){const e=function(e=[],t=p.minMatchCharLength){const n=[];let i=-1,s=-1,r=0;for(let o=e.length;r<o;r+=1){const o=e[r];o&&-1===i?i=r:o||-1===i||(s=r-1,s-i+1>=t&&n.push([i,s]),i=-1)}return e[r-1]&&r-i>=t&&n.push([i,r-1]),n}(A,c);e.length?a&&(E.indices=e):E.isMatch=!1}return E}function k(e){const t={};for(let n=0,i=e.length;n<i;n+=1){const s=e.charAt(n);t[s]=(t[s]||0)|1<<i-n-1}return t}function M(e){if(e.length<=1)return e;e.sort((e,t)=>e[0]-t[0]||e[1]-t[1]);const t=[e[0]];for(let n=1,i=e.length;n<i;n+=1){const i=t[t.length-1],s=e[n];s[0]<=i[1]+1?i[1]=Math.max(i[1],s[1]):t.push(s)}return t}const S={"ł":"l","Ł":"L","đ":"d","Đ":"D","ø":"o","Ø":"O","ħ":"h","Ħ":"H","ŧ":"t","Ŧ":"T","ı":"i","ß":"ss"},x=new RegExp("["+Object.keys(S).join("")+"]","g"),E="function"==typeof String.prototype.normalize?e=>e.normalize("NFD").replace(/[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0711\u0730-\u074A\u07A6-\u07B0\u07EB-\u07F3\u07FD\u0816-\u0819\u081B-\u0823\u0825-\u0827\u0829-\u082D\u0859-\u085B\u08D3-\u08E1\u08E3-\u0903\u093A-\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\u0981-\u0983\u09BC\u09BE-\u09C4\u09C7\u09C8\u09CB-\u09CD\u09D7\u09E2\u09E3\u09FE\u0A01-\u0A03\u0A3C\u0A3E-\u0A42\u0A47\u0A48\u0A4B-\u0A4D\u0A51\u0A70\u0A71\u0A75\u0A81-\u0A83\u0ABC\u0ABE-\u0AC5\u0AC7-\u0AC9\u0ACB-\u0ACD\u0AE2\u0AE3\u0AFA-\u0AFF\u0B01-\u0B03\u0B3C\u0B3E-\u0B44\u0B47\u0B48\u0B4B-\u0B4D\u0B56\u0B57\u0B62\u0B63\u0B82\u0BBE-\u0BC2\u0BC6-\u0BC8\u0BCA-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C44\u0C46-\u0C48\u0C4A-\u0C4D\u0C55\u0C56\u0C62\u0C63\u0C81-\u0C83\u0CBC\u0CBE-\u0CC4\u0CC6-\u0CC8\u0CCA-\u0CCD\u0CD5\u0CD6\u0CE2\u0CE3\u0D00-\u0D03\u0D3B\u0D3C\u0D3E-\u0D44\u0D46-\u0D48\u0D4A-\u0D4D\u0D57\u0D62\u0D63\u0D82\u0D83\u0DCA\u0DCF-\u0DD4\u0DD6\u0DD8-\u0DDF\u0DF2\u0DF3\u0E31\u0E34-\u0E3A\u0E47-\u0E4E\u0EB1\u0EB4-\u0EB9\u0EBB\u0EBC\u0EC8-\u0ECD\u0F18\u0F19\u0F35\u0F37\u0F39\u0F3E\u0F3F\u0F71-\u0F84\u0F86\u0F87\u0F8D-\u0F97\u0F99-\u0FBC\u0FC6\u102B-\u103E\u1056-\u1059\u105E-\u1060\u1062-\u1064\u1067-\u106D\u1071-\u1074\u1082-\u108D\u108F\u109A-\u109D\u135D-\u135F\u1712-\u1714\u1732-\u1734\u1752\u1753\u1772\u1773\u17B4-\u17D3\u17DD\u180B-\u180D\u1885\u1886\u18A9\u1920-\u192B\u1930-\u193B\u1A17-\u1A1B\u1A55-\u1A5E\u1A60-\u1A7C\u1A7F\u1AB0-\u1ABE\u1B00-\u1B04\u1B34-\u1B44\u1B6B-\u1B73\u1B80-\u1B82\u1BA1-\u1BAD\u1BE6-\u1BF3\u1C24-\u1C37\u1CD0-\u1CD2\u1CD4-\u1CE8\u1CED\u1CF2-\u1CF4\u1CF7-\u1CF9\u1DC0-\u1DF9\u1DFB-\u1DFF\u20D0-\u20F0\u2CEF-\u2CF1\u2D7F\u2DE0-\u2DFF\u302A-\u302F\u3099\u309A\uA66F-\uA672\uA674-\uA67D\uA69E\uA69F\uA6F0\uA6F1\uA802\uA806\uA80B\uA823-\uA827\uA880\uA881\uA8B4-\uA8C5\uA8E0-\uA8F1\uA8FF\uA926-\uA92D\uA947-\uA953\uA980-\uA983\uA9B3-\uA9C0\uA9E5\uAA29-\uAA36\uAA43\uAA4C\uAA4D\uAA7B-\uAA7D\uAAB0\uAAB2-\uAAB4\uAAB7\uAAB8\uAABE\uAABF\uAAC1\uAAEB-\uAAEF\uAAF5\uAAF6\uABE3-\uABEA\uABEC\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F]/g,"").replace(x,e=>S[e]):e=>e;var F=class{constructor(e,{location:t=p.location,threshold:n=p.threshold,distance:i=p.distance,includeMatches:s=p.includeMatches,findAllMatches:r=p.findAllMatches,minMatchCharLength:o=p.minMatchCharLength,isCaseSensitive:c=p.isCaseSensitive,ignoreDiacritics:a=p.ignoreDiacritics,ignoreLocation:h=p.ignoreLocation}={}){if(this.options={location:t,threshold:n,distance:i,includeMatches:s,findAllMatches:r,minMatchCharLength:o,isCaseSensitive:c,ignoreDiacritics:a,ignoreLocation:h},e=c?e:e.toLowerCase(),e=a?E(e):e,this.pattern=e,this.chunks=[],!this.pattern.length)return;const u=(e,t)=>{this.chunks.push({pattern:e,alphabet:k(e),startIndex:t})},l=this.pattern.length;if(l>32){let e=0;const t=l%32,n=l-t;for(;e<n;)u(this.pattern.substr(e,32),e),e+=32;if(t){const e=l-32;u(this.pattern.substr(e),e)}}else u(this.pattern,0)}searchIn(e){const{isCaseSensitive:t,ignoreDiacritics:n,includeMatches:i}=this.options;if(e=t?e:e.toLowerCase(),e=n?E(e):e,this.pattern===e){if(e.length<this.options.minMatchCharLength)return{isMatch:!1,score:1};const t={isMatch:!0,score:0};return i&&(t.indices=[[0,e.length-1]]),t}const{location:s,distance:r,threshold:o,findAllMatches:c,minMatchCharLength:a,ignoreLocation:h}=this.options,u=[];let l=0,d=!1;this.chunks.forEach(({pattern:t,alphabet:n,startIndex:f})=>{const{isMatch:g,score:m,indices:p}=v(e,t,n,{location:s+f,distance:r,threshold:o,findAllMatches:c,minMatchCharLength:a,includeMatches:i,ignoreLocation:h});g&&(d=!0),l+=m,g&&p&&u.push(...p)});const f={isMatch:d,score:d?l/this.chunks.length:1};return d&&i&&(f.indices=M(u)),f}};const w=new Set(["fuzzy","include"]);function b(e){return e.startsWith("inverse")}const D=[{type:"exact",multiRegex:/^="(.*)"$/,singleRegex:/^=(.*)$/,create:e=>({type:"exact",search(t){const n=t===e;return{isMatch:n,score:n?0:1,indices:[0,e.length-1]}}})},{type:"include",multiRegex:/^'"(.*)"$/,singleRegex:/^'(.*)$/,create:e=>({type:"include",search(t){let n,i=0;const s=[],r=e.length;for(;(n=t.indexOf(e,i))>-1;)i=n+r,s.push([n,i-1]);const o=!!s.length;return{isMatch:o,score:o?0:1,indices:s}}})},{type:"prefix-exact",multiRegex:/^\^"(.*)"$/,singleRegex:/^\^(.*)$/,create:e=>({type:"prefix-exact",search(t){const n=t.startsWith(e);return{isMatch:n,score:n?0:1,indices:[0,e.length-1]}}})},{type:"inverse-prefix-exact",multiRegex:/^!\^"(.*)"$/,singleRegex:/^!\^(.*)$/,create:e=>({type:"inverse-prefix-exact",search(t){const n=!t.startsWith(e);return{isMatch:n,score:n?0:1,indices:[0,t.length-1]}}})},{type:"inverse-suffix-exact",multiRegex:/^!"(.*)"\$$/,singleRegex:/^!(.*)\$$/,create:e=>({type:"inverse-suffix-exact",search(t){const n=!t.endsWith(e);return{isMatch:n,score:n?0:1,indices:[0,t.length-1]}}})},{type:"suffix-exact",multiRegex:/^"(.*)"\$$/,singleRegex:/^(.*)\$$/,create:e=>({type:"suffix-exact",search(t){const n=t.endsWith(e);return{isMatch:n,score:n?0:1,indices:[t.length-e.length,t.length-1]}}})},{type:"inverse-exact",multiRegex:/^!"(.*)"$/,singleRegex:/^!(.*)$/,create:e=>({type:"inverse-exact",search(t){const n=-1===t.indexOf(e);return{isMatch:n,score:n?0:1,indices:[0,t.length-1]}}})},{type:"fuzzy",multiRegex:/^"(.*)"$/,singleRegex:/^(.*)$/,create:(e,t={})=>{const n=new F(e,{location:t.location??p.location,threshold:t.threshold??p.threshold,distance:t.distance??p.distance,includeMatches:t.includeMatches??p.includeMatches,findAllMatches:t.findAllMatches??p.findAllMatches,minMatchCharLength:t.minMatchCharLength??p.minMatchCharLength,isCaseSensitive:t.isCaseSensitive??p.isCaseSensitive,ignoreDiacritics:t.ignoreDiacritics??p.ignoreDiacritics,ignoreLocation:t.ignoreLocation??p.ignoreLocation});return{type:"fuzzy",search:e=>n.searchIn(e)}}}],_=D.length;function B(e,t){const n=e.match(t);return n?n[1]:null}const L=[];function I(...e){L.push(...e)}function T(e,t){for(let n=0,i=L.length;n<i;n+=1){const i=L[n];if(i.condition(e,t))return new i(e,t)}return new F(e,t)}const $="$and",N="$or",R="$path",z="$val",q=e=>!(!e[$]&&!e[N]),W=e=>({[$]:Object.keys(e).map(t=>({[t]:e[t]}))});function O(t,i,{auto:s=!0}={}){const o=t=>{if(n(t)){const e={keyId:null,pattern:t};return s&&(e.searcher=T(t,i)),e}const c=Object.keys(t),a=(e=>!!e[R])(t);if(!a&&c.length>1&&!q(t))return o(W(t));if((t=>!e(t)&&r(t)&&!q(t))(t)){const e=a?t[R]:c[0],r=a?t[z]:t[e];if(!n(r))throw new Error((e=>`Invalid value for key ${e}`)(e));const o={keyId:g(e),pattern:r};return s&&(o.searcher=T(r,i)),o}const h={children:[],operator:c[0]};return c.forEach(n=>{const i=t[n];e(i)&&i.forEach(e=>{h.children.push(o(e))})}),h};return q(t)||(t=W(t)),o(t)}function j(e,{ignoreFieldNorm:t=p.ignoreFieldNorm}){let n=1;return e.forEach(({key:e,norm:i,score:s})=>{const r=e?e.weight:null;n*=Math.pow(0===s&&r?Number.EPSILON:s,(r||1)*(t?1:i))}),n}var H=class{constructor(e,t){this.limit=e,this.heap=[],this.comparator=t}get size(){return this.heap.length}insert(e){this.size<this.limit?(this.heap.push(e),this._bubbleUp(this.size-1)):this.comparator(e,this.heap[0])<0&&(this.heap[0]=e,this._sinkDown(0))}extractSorted(){return this.heap.sort(this.comparator)}_bubbleUp(e){const t=this.heap;for(;e>0;){const n=e-1>>1;if(this.comparator(t[e],t[n])<=0)break;const i=t[e];t[e]=t[n],t[n]=i,e=n}}_sinkDown(e){const t=this.heap,n=t.length;let i=e;do{const s=2*(e=i)+1,r=2*e+2;if(s<n&&this.comparator(t[s],t[i])>0&&(i=s),r<n&&this.comparator(t[r],t[i])>0&&(i=r),i!==e){const n=t[e];t[e]=t[i],t[i]=n}}while(i!==e)}};function K(e,t,{includeMatches:n=p.includeMatches,includeScore:i=p.includeScore}={}){return e.map(e=>{const{idx:s}=e,r={item:t[s],refIndex:s};return n&&(r.matches=function(e){const t=[];return e.matches.forEach(e=>{if(!o(e.indices)||!e.indices.length)return;const n={indices:e.indices,value:e.value};e.key&&(n.key=e.key.id),e.idx>-1&&(n.refIndex=e.idx),t.push(n)}),t}(e)),i&&(r.score=e.score),r})}const U=/[\p{L}\p{M}\p{N}_]+/gu,P=new WeakSet;function V(e){if("function"==typeof e){let t=!1;return n=>{const i=e(n);if(!t&&(t=!0,!Array.isArray(i)||i.some(e=>"string"!=typeof e)))throw new Error(`[Fuse] tokenize function must return string[]; received ${Array.isArray(i)?"array containing non-strings":typeof i}.`);return i}}return e instanceof RegExp?(e.global||(t=e,P.has(t)||(P.add(t),console.warn(`[Fuse] tokenize regex ${t} lacks the global flag; only the first match per text will be returned. Add the 'g' flag.`))),t=>t.match(e)||[]):e=>e.match(U)||[];var t}function Q({isCaseSensitive:e=!1,ignoreDiacritics:t=!1,tokenize:n}={}){const i=V(n);return{tokenize:n=>(e||(n=n.toLowerCase()),t&&(n=E(n)),i(n))}}function J(e,t,n,i){const s=i.tokenize(t);if(!s.length)return;e.fieldCount++,e.docFieldCount.set(n,(e.docFieldCount.get(n)||0)+1);const r=new Set(s);let o=e.docTermFieldHits.get(n);o||(o=new Map,e.docTermFieldHits.set(n,o));for(const t of r)o.set(t,(o.get(t)||0)+1),e.df.set(t,(e.df.get(t)||0)+1)}function X(e,t,n,i){const{i:s,v:r,$:o}=t;if(void 0===r){if(o)for(let t=0;t<n;t++){const n=o[t];if(n)if(Array.isArray(n))for(const t of n)J(e,t.v,s,i);else J(e,n.v,s,i)}}else J(e,r,s,i)}function Y(e,t){const n=e.docFieldCount.get(t);if(void 0===n)return;e.fieldCount-=n,e.docFieldCount.delete(t);const i=e.docTermFieldHits.get(t);if(i){for(const[t,n]of i){const i=(e.df.get(t)||0)-n;i<=0?e.df.delete(t):e.df.set(t,i)}e.docTermFieldHits.delete(t)}}function G(e,t){if(0===t.length)return;const n=Array.from(new Set(t)).sort((e,t)=>e-t);for(const t of n)Y(e,t);const i=e=>{let t=0,i=n.length;for(;t<i;){const s=t+i>>>1;n[s]<e?t=s+1:i=s}return e-t},s=n[0],r=new Map;for(const[t,n]of e.docFieldCount)r.set(t>s?i(t):t,n);e.docFieldCount=r;const o=new Map;for(const[t,n]of e.docTermFieldHits)o.set(t>s?i(t):t,n);e.docTermFieldHits=o}var Z=class{constructor(e,t,n){this.options={...p,...t},this.options.useExtendedSearch,this.options.useTokenSearch,this._keyStore=new l(this.options.keys),this._docs=e,this._myIndex=null,this._invertedIndex=null,this.setCollection(e,n),this._lastQuery=null,this._lastSearcher=null}_getSearcher(e){if(this._lastQuery===e)return this._lastSearcher;const t=T(e,this._invertedIndex?{...this.options,_invertedIndex:this._invertedIndex}:this.options);return this._lastQuery=e,this._lastSearcher=t,t}setCollection(e,t){if(this._docs=e,t&&!(t instanceof A))throw new Error("Incorrect 'index' type");if(this._myIndex=t||C(this.options.keys,this._docs,{getFn:this.options.getFn,fieldNormWeight:this.options.fieldNormWeight}),this.options.useTokenSearch){const e=Q({isCaseSensitive:this.options.isCaseSensitive,ignoreDiacritics:this.options.ignoreDiacritics,tokenize:this.options.tokenize});this._invertedIndex=function(e,t,n){const i={fieldCount:0,df:new Map,docFieldCount:new Map,docTermFieldHits:new Map};for(const s of e)X(i,s,t,n);return i}(this._myIndex.records,this._myIndex.keys.length,e)}this._invalidateSearcherCache()}add(e){if(!o(e))return;this._docs.push(e);const t=this._myIndex.add(e,this._docs.length-1);if(this._invertedIndex&&t){const e=Q({isCaseSensitive:this.options.isCaseSensitive,ignoreDiacritics:this.options.ignoreDiacritics,tokenize:this.options.tokenize});!function(e,t,n,i){X(e,t,n,i)}(this._invertedIndex,t,this._myIndex.keys.length,e)}this._invalidateSearcherCache()}remove(e=()=>!1){const t=[],n=[];for(let i=0,s=this._docs.length;i<s;i+=1)e(this._docs[i],i)&&(t.push(this._docs[i]),n.push(i));if(n.length){this._invertedIndex&&G(this._invertedIndex,n);const e=new Set(n);this._docs=this._docs.filter((t,n)=>!e.has(n)),this._myIndex.removeAll(n),this._invalidateSearcherCache()}return t}removeAt(e){if(!Number.isInteger(e)||e<0||e>=this._docs.length)throw new Error(h);this._invertedIndex&&G(this._invertedIndex,[e]);const t=this._docs.splice(e,1)[0];return this._myIndex.removeAt(e),this._invalidateSearcherCache(),t}_invalidateSearcherCache(){this._lastQuery=null,this._lastSearcher=null}getIndex(){return this._myIndex}_normalizedKeys(){return this._myIndex.keys.map(e=>this._keyStore.get(e.id)||e)}search(e,t){const{limit:s=-1}=t||{},{includeMatches:r,includeScore:o,shouldSort:c,sortFn:a,ignoreFieldNorm:h}=this.options;if(n(e)&&!e.trim()){let e=this._docs.map((e,t)=>({item:e,refIndex:t}));return i(s)&&s>-1&&(e=e.slice(0,s)),e}const u=c&&i(s)&&s>0&&n(e),l=a,d=(e,t)=>l(e,t)||e.idx-t.idx;let f;if(u){const t=new H(s,d);n(this._docs[0])?this._searchStringList(e,{heap:t,ignoreFieldNorm:h}):this._searchObjectList(e,{heap:t,ignoreFieldNorm:h}),f=t.extractSorted()}else f=n(e)?n(this._docs[0])?this._searchStringList(e):this._searchObjectList(e):this._searchLogical(e),function(e,{ignoreFieldNorm:t=p.ignoreFieldNorm}){e.forEach(e=>{e.score=j(e.matches,{ignoreFieldNorm:t})})}(f,{ignoreFieldNorm:h}),c&&f.sort(n(e)?d:l),i(s)&&s>-1&&(f=f.slice(0,s));return K(f,this._docs,{includeMatches:r,includeScore:o})}_searchStringList(e,{heap:t,ignoreFieldNorm:n}={}){const i=this._getSearcher(e),s=this.options.useTokenSearch&&"all"===this.options.tokenMatch,{records:r}=this._myIndex,c=t?null:[];return r.forEach(({v:e,i:r,n:a})=>{if(!o(e))return;const h=i.searchIn(e);if(h.isMatch){const i={score:h.score,value:e,norm:a,indices:h.indices};s&&(i.matchedMask=h.matchedMask,i.matchedTerms=h.matchedTerms,i.termCount=h.termCount);const o=[i];if(!s||this._coversAllTokens(o)){const i={item:e,idx:r,matches:o};t?(i.score=j(i.matches,{ignoreFieldNorm:n}),t.insert(i)):c.push(i)}}}),c}_searchLogical(e){const t=O(e,this.options),n=this._normalizedKeys(),i=(e,t,s)=>{if(!("children"in e)){const{keyId:i,searcher:r}=e;let o;return null===i?(o=[],n.forEach((e,n)=>{o.push(...this._findMatches({key:e,value:t[n],searcher:r}))})):o=this._findMatches({key:this._keyStore.get(i),value:this._myIndex.getValueForItemAtKeyId(t,i),searcher:r}),o&&o.length?[{idx:s,item:t,matches:o}]:[]}const{children:r,operator:o}=e,c=[];for(let e=0,n=r.length;e<n;e+=1){const n=r[e],a=i(n,t,s);if(a.length)c.push(...a);else if(o===$)return[]}return c},s=this._myIndex.records,r=new Map,c=[];return s.forEach(({$:e,i:n})=>{if(o(e)){const s=i(t,e,n);s.length&&(r.has(n)||(r.set(n,{idx:n,item:e,matches:[]}),c.push(r.get(n))),s.forEach(({matches:e})=>{r.get(n).matches.push(...e)}))}}),c}_searchObjectList(e,{heap:t,ignoreFieldNorm:n}={}){const i=this._getSearcher(e),s=this.options.useTokenSearch&&"all"===this.options.tokenMatch,{records:r}=this._myIndex,c=this._normalizedKeys(),a=t?null:[];return r.forEach(({$:e,i:r})=>{if(!o(e))return;const h=[];let u=!1,l=!1;if(c.forEach((t,n)=>{const s=this._findMatches({key:t,value:e[n],searcher:i});s.length?(h.push(...s),s[0].hasInverse&&(l=!0)):u=!0}),(!l||!u)&&h.length&&(!s||this._coversAllTokens(h))){const i={idx:r,item:e,matches:h};t?(i.score=j(i.matches,{ignoreFieldNorm:n}),t.insert(i)):a.push(i)}}),a}_findMatches({key:t,value:n,searcher:i}){if(!o(n))return[];const s=[];if(e(n))n.forEach(({v:e,i:n,n:r})=>{if(!o(e))return;const c=i.searchIn(e);if(c.isMatch){const i={score:c.score,key:t,value:e,idx:n,norm:r,indices:c.indices,hasInverse:c.hasInverse};void 0!==c.termCount&&(i.matchedMask=c.matchedMask,i.matchedTerms=c.matchedTerms,i.termCount=c.termCount),s.push(i)}});else{const{v:e,n:r}=n,o=i.searchIn(e);if(o.isMatch){const n={score:o.score,key:t,value:e,norm:r,indices:o.indices,hasInverse:o.hasInverse};void 0!==o.termCount&&(n.matchedMask=o.matchedMask,n.matchedTerms=o.matchedTerms,n.termCount=o.termCount),s.push(n)}}return s}_coversAllTokens(e){const t=e.length?e[0].termCount:void 0;if(void 0===t)return!0;if(t<=31){let n=0;for(let t=0;t<e.length;t++)n|=e[t].matchedMask||0;return n===2**t-1}const n=new Set;for(let t=0;t<e.length;t++){const i=e[t].matchedTerms;if(i)for(const e of i)n.add(e)}return n.size===t}};Z.version="7.5.0",Z.createIndex=C,Z.parseIndex=function(e,{getFn:t=p.getFn,fieldNormWeight:n=p.fieldNormWeight}={}){const{keys:i,records:s}=e,r=new A({getFn:t,fieldNormWeight:n});return r.setKeys(i),r.setIndexRecords(s),r},Z.config=p,Z.match=function(e,t,n){if(n&&n.useTokenSearch)throw new Error("Fuse.match does not support useTokenSearch: token search requires corpus-level statistics (df, fieldCount) that a one-off string comparison does not have. Use new Fuse(...).search(...) instead.");return T(e,{...p,...n}).searchIn(t)},Z.parseQuery=O,I(class{constructor(e,{isCaseSensitive:t=p.isCaseSensitive,ignoreDiacritics:n=p.ignoreDiacritics,includeMatches:i=p.includeMatches,minMatchCharLength:s=p.minMatchCharLength,ignoreLocation:r=p.ignoreLocation,findAllMatches:o=p.findAllMatches,location:c=p.location,threshold:a=p.threshold,distance:h=p.distance}={}){this.query=null,this.options={isCaseSensitive:t,ignoreDiacritics:n,includeMatches:i,minMatchCharLength:s,findAllMatches:o,ignoreLocation:r,location:c,threshold:a,distance:h},e=t?e:e.toLowerCase(),e=n?E(e):e,this.pattern=e,this.query=function(e,t={}){return e.replace(/\\\|/g,"\0").split("|").map(e=>{const n=function(e){const t=[],n=e.length;let i=0;for(;i<n;){for(;i<n&&" "===e[i];)i++;if(i>=n)break;let s=i;for(;s<n&&" "!==e[s]&&'"'!==e[s];)s++;if(s<n&&'"'===e[s]){for(s++;s<n;){if('"'===e[s]){const t=s+1;if(t>=n||" "===e[t]){s++;break}if("$"===e[t]&&(t+1>=n||" "===e[t+1])){s+=2;break}}s++}t.push(e.substring(i,s)),i=s}else{for(;s<n&&" "!==e[s];)s++;t.push(e.substring(i,s)),i=s}}return t}(e.replace(/\u0000/g,"|").trim()).filter(e=>e&&!!e.trim()),i=[];for(let e=0,s=n.length;e<s;e+=1){const s=n[e];let r=!1,o=-1;for(;!r&&++o<_;){const e=D[o],n=B(s,e.multiRegex);n&&(i.push(e.create(n,t)),r=!0)}if(!r)for(o=-1;++o<_;){const e=D[o],n=B(s,e.singleRegex);if(n){i.push(e.create(n,t));break}}}return i})}(this.pattern,this.options)}static condition(e,t){return t.useExtendedSearch}searchIn(e){const t=this.query;if(!t)return{isMatch:!1,score:1};const{includeMatches:n,isCaseSensitive:i,ignoreDiacritics:s}=this.options;e=i?e:e.toLowerCase(),e=s?E(e):e;let r=0;const o=[];let c=0,a=!1;for(let i=0,s=t.length;i<s;i+=1){const s=t[i];o.length=0,r=0,a=!1;for(let t=0,i=s.length;t<i;t+=1){const i=s[t],{isMatch:h,indices:u,score:l}=i.search(e);if(!h){c=0,r=0,o.length=0,a=!1;break}r+=1,c+=l,b(i.type)&&(a=!0),n&&(w.has(i.type)?o.push(...u):o.push(u))}if(r){const e={isMatch:!0,score:c/r};return a&&(e.hasInverse=!0),n&&(e.indices=M(o)),e}}return{isMatch:!1,score:1}}}),I(class{static condition(e,t){return t.useTokenSearch}constructor(e,t){this.options=t,this.analyzer=Q({isCaseSensitive:t.isCaseSensitive,ignoreDiacritics:t.ignoreDiacritics,tokenize:t.tokenize});const n=this.analyzer.tokenize(e),{df:i,fieldCount:s}=t._invertedIndex;this.termSearchers=[],this.idfWeights=[];for(const e of n){this.termSearchers.push(new F(e,{location:t.location,threshold:t.threshold,distance:t.distance,includeMatches:t.includeMatches,findAllMatches:t.findAllMatches,minMatchCharLength:t.minMatchCharLength,isCaseSensitive:t.isCaseSensitive,ignoreDiacritics:t.ignoreDiacritics,ignoreLocation:!0}));const n=i.get(e)||0,r=Math.log(1+(s-n+.5)/(n+.5));this.idfWeights.push(r)}this.combineAll="all"===t.tokenMatch,this.numTerms=this.termSearchers.length,this.useMask=this.numTerms<=31}searchIn(e){if(!this.termSearchers.length)return{isMatch:!1,score:1};const t=[];let n=0,i=0,s=0,r=0;const o=this.combineAll&&!this.useMask?new Set:null;for(let c=0;c<this.termSearchers.length;c++){const a=this.termSearchers[c].searchIn(e),h=this.idfWeights[c];i+=h,a.isMatch&&(s++,n+=h*(1-a.score),a.indices&&t.push(...a.indices),this.combineAll&&(this.useMask?r|=1<<c:o.add(c)))}if(0===s)return{isMatch:!1,score:1};const c=i>0?1-n/i:0,a={isMatch:!0,score:Math.max(.001,c)};return this.options.includeMatches&&t.length&&(a.indices=M(t)),this.combineAll&&(this.useMask?a.matchedMask=r:a.matchedTerms=o,a.termCount=this.numTerms),a}}),Z.use=function(...e){e.forEach(e=>I(e))};var ee=Z;const te={enableStickySidebar:!0,enableTimeAgo:!0,enableAnimatedAlerts:!0},ne=[];var ie={init:function(e=te){console.log("Booyaka Initialized"),e.enableStickySidebar&&this.initStickySidebar(),e.enableTimeAgo&&this.initTimeAgo(),e.enableAnimatedAlerts&&this.initAnimatedAlerts(),this.initSmoothAnchors(),this.initExternalLinksDecorator(),this.initSpotlightSearch(),this.initShareMarkdown();const t=function(){e.enableStickySidebar&&this.initStickySidebar(),e.enableTimeAgo&&this.initTimeAgo(),e.fetchAndSwapCallback&&e.fetchAndSwapCallback(),e.enableAnimatedAlerts&&this.initAnimatedAlerts(),this.initSmoothAnchors(),this.initExternalLinksDecorator(),this.initShareMarkdown(),n.querySelectorAll("a").forEach(e=>e.classList.remove("active","bg-dark"));const t=location.pathname,i=n.querySelector(`a[href="${t}"]`);i&&i.classList.add("active","bg-dark"),this.triggerReload()}.bind(this);let n=document.querySelector(".sidebar-navigation");document.addEventListener("click",e=>{const n=e.target.closest("a");!n||!n.href||n.origin!==location.origin||n.hasAttribute("download")||n.target||n.href.startsWith("mailto:")||n.href.startsWith("tel:")||n.getAttribute("href").startsWith("#")||(e.preventDefault(),this.fetchAndSwap(n.pathname+n.search,!0,t))}),document.querySelectorAll('input[type="checkbox"]').forEach(e=>{e.classList.add("form-check-input")}),this.triggerReload()},onReload:function(e){ne.push(e)},triggerReload:function(){ne.forEach(e=>{try{e()}catch(e){console.error(e)}})},initSpotlightSearch:function(){fetch("/results.json").then(e=>e.json()).then(e=>{if(!e)return;let t=document.querySelector(".spotlight-form"),n=document.createElement("div");n.classList.add("position-fixed","border","border-dark","list-unstyled","w-100","rounded-4","p-2","d-none","spotlight-autocomplete"),n.style.top="68px",n.style.zIndex="1050",n.style.maxWidth=t.offsetWidth+"px",n.style.left=t.getBoundingClientRect().left+"px",n.style.backgroundColor="rgba(10,14,14,0.60)",n.style.boxShadow="0 30px 30px rgba(0,0,0,.8)",n.style.backdropFilter="blur(34px)",n.style.maxHeight="280px";let i=document.createElement("ul");i.classList.add("m-0","p-0","spotlight-autocomplete-list"),i.style.overflowX="scroll",i.style.maxHeight="260px",n.appendChild(i),document.body.insertAdjacentElement("beforeend",n);let s=new ee(e.results,{keys:["title","description","headings"],minMatchCharLength:4,includeMatches:!0,threshold:.1,distance:500,useExtendedSearch:!0,findAllMatches:!1});document.addEventListener("click",function(e){t.contains(e.target)||n.classList.add("d-none")});var r=!1;t.querySelector(".spotlight").addEventListener("click",function(){r=!0}),document.addEventListener("keydown",function(e){if("/"===e.key&&(e.metaKey||e.ctrlKey)&&(e.preventDefault(),t.querySelector(".spotlight").focus(),r=!0),r){let s=n.querySelectorAll(".spotlight-autocomplete-item");var i=Array.from(s).findIndex(e=>e.classList.contains("active"));if("ArrowDown"===e.key)e.preventDefault(),i<s.length-1&&(i>=0&&s[i].classList.remove("active"),s[++i].classList.add("active"),s[i].scrollIntoView({block:"nearest"}));else if("ArrowUp"===e.key)e.preventDefault(),i>0&&(s[i].classList.remove("active"),s[--i].classList.add("active"),s[i].scrollIntoView({block:"nearest"}));else if("Enter"===e.key&&(e.preventDefault(),i>=0)){let e=s[i].querySelector("span.d-block").textContent;t.querySelector(".spotlight").value=e,s[i].click()}}});let o=document.querySelector(".spotlight");o.addEventListener("keydown",function(e){"/"===e.key&&(e.metaKey||e.ctrlKey)?(e.preventDefault(),o.focus()):"Escape"===e.key&&n.classList.add("d-none")}),o.addEventListener("input",function(e){const t=e.target.value;t.length<=3?n.classList.add("d-none"):function(e){const t=document.documentElement.dataset.lang||"",r=s.search(e).filter(e=>!t||(e.item.lang||"")===t);if(i.innerHTML="",0!==r.length){n.classList.remove("d-none");for(let e of r){let t=document.createElement("li"),n=document.createElement("a");n.classList.add("d-block","rounded-4","py-2","px-3","border-0","text-decoration-none","spotlight-autocomplete-item"),n.href="/"!=e.item.url?`/${e.item.url}`:"/",n.innerHTML=`<span class="d-block">${e.item.title}</span><span class="text-muted small d-block lh-sm">${e.item.description}</span>`,t.appendChild(n);for(let t of e.matches)if("title"===t.key||"description"===t.key){let e="title"===t.key?"span.d-block":"span.text-muted",i=n.querySelector(e);if(i){let e=i.textContent,n="",s=0;for(let i of t.indices){let t=i[0],r=i[1]+1;n+=e.slice(s,t),n+="<mark>"+e.slice(t,r)+"</mark>",s=r}n+=e.slice(s),i.innerHTML=n}}i.appendChild(t)}}else n.classList.add("d-none")}(t)})})},initStickySidebar:function(){const e=document.querySelectorAll(".sticky-sidebar"),t=document.querySelector(".navbar-container-area").offsetHeight;function n(){for(const n of e)n.style.top=t+30+"px"}window.addEventListener("scroll",n),window.addEventListener("resize",n),n()},initSmoothAnchors:function(){function e(e){const t=document.querySelector(".navbar-container-area"),n=t?t.offsetHeight:0,i=document.getElementById(e);if(console.log(i),i){const e=i.getBoundingClientRect().top+window.pageYOffset;window.scrollTo({top:e-n,behavior:"smooth"})}}document.querySelectorAll('a[href^="#"]').forEach(t=>{t.addEventListener("click",function(t){const n=this.getAttribute("href"),i=decodeURIComponent(n.slice(1));if(i){(document.getElementById(i)||document.querySelector(`[name="${i}"]`))&&(t.preventDefault(),e(i),history.replaceState(null,null,n))}})}),window.location.hash&&setTimeout(()=>{e(window.location.hash.slice(1))},100)},fetchAndSwap(e,t=!0,n){fetch(e,{headers:{"X-Requested-With":"spa"}}).then(e=>{if(!e.ok)throw new Error("Network error");return e.text()}).then(i=>{const s=(new DOMParser).parseFromString(i,"text/html"),r=s.querySelector("[data-view]"),o=document.querySelector("[data-view]"),c=s.querySelector("[data-view-right]"),a=document.querySelector("[data-view-right]");let h=!1;r&&o&&(o.innerHTML=r.innerHTML,h=!0),c&&a&&(a.innerHTML=c.innerHTML,h=!0),h?(t&&history.pushState(null,"",e),window.scrollTo(0,0),n&&n(e,r,c)):(console.warn("Could not find view containers in the fetched HTML. Reloading the page as fallback."),location.href=e)}).catch(()=>location.href=e)},initShareMarkdown:function(){document.querySelectorAll("[data-share-markdown]").forEach(e=>{e.addEventListener("click",()=>{const t=document.querySelector("#share-markdown-content");if(!t)return;const n=JSON.parse(t.textContent).markdown;navigator.clipboard.writeText(n).then(()=>{const t=e.querySelector("span.fw-bold"),n=t.textContent;t.textContent="Copied!",setTimeout(()=>{t.textContent=n},1500)})})})},initExternalLinksDecorator:function(){document.querySelectorAll("a[href]").forEach(e=>{var t;(t=e).hostname&&t.hostname!==window.location.hostname&&(e.classList.add("external"),e.setAttribute("target","_blank"))})},initAnimatedAlerts:function(){document.querySelectorAll(".alert").forEach(e=>{const t=document.createElement("div");t.className="alert-animation",t.style.left="0px",t.style.top="0px",e.style.position="relative",e.insertAdjacentElement("afterbegin",t);document.body.addEventListener("mousemove",n=>{const i=e.getBoundingClientRect(),s=t.offsetWidth,r=t.offsetHeight;let o=n.clientX-i.left-s/2,c=n.clientY-i.top-r/2;o=Math.max(-400,Math.min(o,i.width-s+400)),c=Math.max(-400,Math.min(c,i.height-r+400));const a=o+s/2-i.width/2,h=c+r/2-i.height/2,u=Math.atan2(h,a)*(18/Math.PI);t.style.transform="translate("+o+"px, "+c+"px) rotate("+u+"deg)"})})},initTimeAgo:function(){const t=new Intl.RelativeTimeFormat(void 0,{numeric:"auto"});document.querySelectorAll("time[datetime]").forEach(e=>{const n=new Date(e.getAttribute("datetime").replace(" ","T")),i=Math.round((n-new Date)/1e3),s=Math.abs(i);e.textContent=s<60?t.format(i,"second"):s<3600?t.format(Math.round(i/60),"minute"):s<86400?t.format(Math.round(i/3600),"hour"):s<2592e3?t.format(Math.round(i/86400),"day"):s<31536e3?t.format(Math.round(i/2592e3),"month"):t.format(Math.round(i/31536e3),"year")})}};return document.addEventListener("DOMContentLoaded",()=>{UI.init({enableStickySidebar:!0,enableTimeAgo:!0,enableAnimatedAlerts:!0}),document.querySelector('div[data-area="main"]'),document.querySelector('div[data-area="left"]'),document.querySelector('div[data-area="right"]'),localStorage.getItem("leftSidebarVisible"),localStorage.getItem("rightSidebarVisible")}),ie}();
+import Fuse from 'fuse.js'
+
+/**
+ * Booyaka Client App
+ * 
+ * This module initializes the client-side application, sets up UI interactions,
+ * and provides utility functions for features like sticky sidebars and "time ago" formatting.
+ */
+const defaultAppOpts = {
+  /**
+   * Enable sticky sidebars that remain visible below the navbar when scrolling.
+   * This is useful for keeping navigation or other important elements accessible.
+   */
+  enableStickySidebar: true,
+
+  /**
+   * Enable "time ago" formatting for <time> elements with a datetime attribute.
+   * This converts timestamps into a human-readable format like "5 minutes ago".
+   * It enhances the user experience by providing relative time information.
+  */
+  enableTimeAgo: true,
+
+  /**
+   * Enable animated alerts that follow the mouse cursor within the alert box.
+   * This adds a dynamic visual effect to alert messages, making them more engaging.
+   * The animation allows the alert to move slightly in response to mouse movements,
+   * creating an interactive experience for the user.
+  */
+  enableAnimatedAlerts: true
+}
+
+/**
+ * Callbacks registered via `UI.onReload` that run every time a page is
+ * loaded or swapped via SPA navigation.
+ */
+const reloadCallbacks = [];
+
+const UI = {
+  /**
+   * Initialize the application with the given options.
+   * This function sets up the UI features based on the provided options.
+   * It also adds necessary event listeners and applies styles to checkboxes.
+   * 
+   * @param {Object} opts - Configuration options for initializing the app.
+   * @param {boolean} opts.enableStickySidebar - Whether to enable sticky sidebars.
+   * @param {boolean} opts.enableTimeAgo - Whether to enable "time ago" formatting.
+   * @param {callback} opts.fetchAndSwapCallback - Optional callback to override the default fetchAndSwap behavior.
+   *
+  */
+  init: function(opts = defaultAppOpts) {
+    console.log("Booyaka Initialized");
+    opts.enableTimeAgo && this.initTimeAgo()
+    opts.enableAnimatedAlerts && this.initAnimatedAlerts();
+    
+    this.initSmoothAnchors();
+    this.initExternalLinksDecorator();
+    this.initSpotlightSearch();
+    this.initShareMarkdown();
+
+    const fetchSwapCallback = function() {
+      opts.enableTimeAgo && this.initTimeAgo();
+      opts.fetchAndSwapCallback && opts.fetchAndSwapCallback(); // custom callback for additional initialization
+      opts.enableAnimatedAlerts && this.initAnimatedAlerts();
+    
+      this.initSmoothAnchors();
+      this.initExternalLinksDecorator();
+      this.initShareMarkdown();
+
+      sidebarNavigation.querySelectorAll('a').forEach(link => link.classList.remove('active', 'bg-dark'));
+      // after fetching new content, we want to make the current page's link active in the sidebar
+      const currentPath = location.pathname;
+      const activeLink = sidebarNavigation.querySelector(`a[href="${currentPath}"]`);
+      if (activeLink) {
+        activeLink.classList.add('active', 'bg-dark');
+      }
+
+      this.triggerReload();
+    }.bind(this) // bind 'this' to ensure the correct context inside the callback
+
+    // Intercept clicks on internal links to enable SPA-like navigation without full page reloads.
+    let sidebarNavigation = document.querySelector('.sidebar-navigation')
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('a');
+      if (a &&  a.href &&  a.origin === location.origin && !a.hasAttribute('download') && 
+        !a.target &&  !a.href.startsWith('mailto:') &&  !a.href.startsWith('tel:') && !a.getAttribute('href').startsWith('#')) {
+        e.preventDefault();
+        this.fetchAndSwap(a.pathname + a.search, true, fetchSwapCallback);
+      }
+    });
+
+    // Apply Bootstrap classes to checkboxes for consistent styling
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+      checkbox.classList.add('form-check-input'); // the bootstrap class
+    });
+
+    // Fire reload callbacks once on initial page load
+    this.triggerReload();
+  },
+
+  /**
+   * Register a callback that runs every time a page is loaded or swapped.
+   * This is useful for lazily initializing features (e.g., lazy-loading
+   * iframes) that need to be re-applied to newly fetched content.
+   *
+   * @param {callback} callback - Function to run on every page load/swap.
+   */
+  onReload: function(callback) {
+    reloadCallbacks.push(callback);
+  },
+
+  /**
+   * Run all registered `onReload` callbacks.
+   */
+  triggerReload: function() {
+    reloadCallbacks.forEach(cb => {
+      try { cb() } catch (e) { console.error(e) }
+    });
+  },
+
+  // Initialize the spotlight search feature using Fuse.js for client-side fuzzy searching.
+  initSpotlightSearch: function() {
+    let spotlightForm = document.querySelector('.spotlight-form');
+    // Derive the site base from the form's own action so search works
+    // under subpath deployments (/blog/...) in every environment.
+    let siteBase = '';
+    try {
+      const actionPath = new URL(spotlightForm.action, window.location.href).pathname;
+      siteBase = actionPath.replace(/\/search\/?$/, '');
+    } catch (e) { /* keep site base empty */ }
+    const resultsUrl = siteBase + '/results.json';
+    const resolveUrl = (url) => siteBase + '/' + String(url || '').replace(/^\//, '');
+    fetch(resultsUrl).then(response => response.json()).then(data => {
+      if(!data) return;
+      let spotlightAutocomplete = document.createElement('div');
+      spotlightAutocomplete.classList.add('position-fixed', 'border', 'border-dark', 'list-unstyled', 'w-100', 'rounded-4', 'p-2', 'd-none', 'spotlight-autocomplete');
+      spotlightAutocomplete.style.top = '68px'
+      spotlightAutocomplete.style.zIndex = '1050';
+      spotlightAutocomplete.style.maxWidth = spotlightForm.offsetWidth + 'px';
+      spotlightAutocomplete.style.left = spotlightForm.getBoundingClientRect().left + 'px';
+      spotlightAutocomplete.style.backgroundColor = 'rgba(10,14,14,0.60)';
+      spotlightAutocomplete.style.boxShadow = '0 30px 30px rgba(0,0,0,.8)';
+      spotlightAutocomplete.style.backdropFilter = 'blur(34px)';
+      
+      spotlightAutocomplete.style.maxHeight = '280px';
+
+      let spotlightInner = document.createElement('ul');
+      spotlightInner.classList.add('m-0', 'p-0', 'spotlight-autocomplete-list');
+      spotlightInner.style.overflowX = 'scroll';
+      spotlightInner.style.maxHeight = '260px';
+      
+      spotlightAutocomplete.appendChild(spotlightInner);
+      document.body.insertAdjacentElement('beforeend', spotlightAutocomplete);
+
+      // Create Fuse instance
+      let fuse = new Fuse(data.results, {
+        keys: ['title', 'description', 'headings'],
+        minMatchCharLength: 4, // Only match longer substrings
+        includeMatches: true,
+        threshold: 0.1, // Stricter matching
+        distance: 500,
+        useExtendedSearch: true, // Enable extended search
+        findAllMatches: false,   // Only best matches
+      });
+
+      // clicking outside the autocomplete closes it
+      document.addEventListener('click', function(event) {
+        if (!spotlightForm.contains(event.target)) {
+          spotlightAutocomplete.classList.add('d-none');
+        }
+      });
+      
+      // pressing cmd/ctrl + / focuses the search input
+      var isSpotlightFocused = false;
+      spotlightForm.querySelector('.spotlight').addEventListener('click', function() {
+        isSpotlightFocused = true;
+      });
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key === '/' && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          spotlightForm.querySelector('.spotlight').focus();
+          isSpotlightFocused = true;
+        }
+        // handle arrow keys and enter for navigating the autocomplete list
+        if (isSpotlightFocused) {
+          let items = spotlightAutocomplete.querySelectorAll('.spotlight-autocomplete-item');
+          var index = Array.from(items).findIndex(item => item.classList.contains('active'));
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (index < items.length - 1) {
+              if (index >= 0) items[index].classList.remove('active');
+              items[++index].classList.add('active');
+              items[index].scrollIntoView({ block: 'nearest' });
+            }
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (index > 0) {
+              items[index].classList.remove('active');
+              items[--index].classList.add('active');
+              items[index].scrollIntoView({ block: 'nearest' });
+            }
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (index >= 0) {
+              // before navigating, we want to collect the page title
+              // and fill the search input with it, so that when user goes back,
+              // they see the title of the page they visited instead of the search query
+              let title = items[index].querySelector('span.d-block').textContent;
+              spotlightForm.querySelector('.spotlight').value = title;
+              // navigate to the selected page
+              items[index].click();
+            }
+          }
+        }
+      });
+
+      // Example search function
+      function searchDocs(query) {
+        const pageLang = document.documentElement.dataset.lang || "";
+        const results = fuse.search(query).filter(r =>
+          !pageLang || (r.item.lang || "") === pageLang);
+        // results is an array of objects: { item, refIndex, ... }
+        spotlightInner.innerHTML = '';
+        if(results.length === 0) {
+          spotlightAutocomplete.classList.add('d-none');
+          return;
+        }
+        spotlightAutocomplete.classList.remove('d-none');
+        for (let r of results) {
+          let li = document.createElement('li');
+          let a = document.createElement('a');
+          a.classList.add('d-block', 'rounded-4', 'py-2', 'px-3', 'border-0', 'text-decoration-none', 'spotlight-autocomplete-item');
+          a.href = resolveUrl(r.item.url);
+          a.innerHTML = `<span class="d-block">${r.item.title}</span><span class="text-muted small d-block lh-sm">${r.item.description}</span>`;
+          li.appendChild(a);
+
+          // use provided indices to highlight matched terms
+          for (let match of r.matches) {
+            if (match.key === 'title' || match.key === 'description') {
+              // Find the corresponding span for title/description
+              let spanSelector = match.key === 'title' ? 'span.d-block' : 'span.text-muted';
+              let span = a.querySelector(spanSelector);
+              if (span) {
+                let text = span.textContent;
+                let highlighted = '';
+                let lastIndex = 0;
+                for (let range of match.indices) {
+                  let start = range[0];
+                  let end = range[1] + 1;
+                  highlighted += text.slice(lastIndex, start);
+                  highlighted += '<mark>' + text.slice(start, end) + '</mark>';
+                  lastIndex = end;
+                }
+                highlighted += text.slice(lastIndex);
+                span.innerHTML = highlighted;
+              }
+            }
+          }
+          spotlightInner.appendChild(li);
+        }
+      }
+  
+      let spotlight = document.querySelector('.spotlight');
+
+      spotlight.addEventListener('keydown', function(event) {
+        if (event.key === '/' && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          spotlight.focus();
+        } else if(event.key === 'Escape') {
+          spotlightAutocomplete.classList.add('d-none');
+        }
+      });
+  
+      spotlight.addEventListener('input', function(event) {
+        const query = event.target.value;
+        if(query.length <= 3) {
+          spotlightAutocomplete.classList.add('d-none');
+          return;
+        }
+        searchDocs(query);
+      });
+    });
+  },
+
+  /**
+   * Initialize smooth scrolling for internal anchor links.
+   * This function ensures that when users click on links that point to anchors within the page,
+   * the page will scroll smoothly to the target section, accounting for the height of the sticky navbar.
+   */
+  initSmoothAnchors: function() {
+    // Smooth scroll to anchor, offset by sticky navbar height
+    function scrollToAnchorWithOffset(hash) {
+      const navbar = document.querySelector('.navbar-container-area');
+      const navbarHeight = navbar ? navbar.offsetHeight : 0;
+      const target = document.getElementById(hash);
+      console.log(target)
+      if (target) {
+        const targetPosition = target.getBoundingClientRect().top + window.pageYOffset;
+        window.scrollTo({
+          top: targetPosition - navbarHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+
+    // Attach click event to all internal anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        const rawHash = this.getAttribute('href');
+        const hash = decodeURIComponent(rawHash.slice(1));
+        if (hash) {
+          const target = document.getElementById(hash) || document.querySelector(`[name="${hash}"]`);
+          if (target) {
+            e.preventDefault();
+            scrollToAnchorWithOffset(hash);
+            history.replaceState(null, null, rawHash);
+          }
+        }
+      });
+    });
+
+    // If page loads with a hash, scroll to it with offset
+    if (window.location.hash) {
+      setTimeout(() => {
+        const hash = window.location.hash.slice(1);
+        scrollToAnchorWithOffset(hash);
+      }, 100);
+    }
+  },
+
+
+  /**
+   * Fetches the given URL and swaps the content of the current
+   * view with the new view from the response.
+   * 
+   * If the fetch fails or the expected view container is not
+   * found in the response, it falls back to a full page reload.
+   * 
+   * @param {string} url - The URL to fetch and swap.
+   * @param {boolean} pushState - Whether to push the new URL to the browser history (default: true).
+   * @param {callback} callback - Optional callback to execute after successful content swap.
+   * @returns {void}
+  */
+  fetchAndSwap(url, pushState = true, callback) {
+    fetch(url, {headers: {'X-Requested-With': 'spa'}})
+      .then(resp => {
+        if (!resp.ok) throw new Error('Network error');
+        return resp.text();
+      })
+      .then(html => {
+        // parse the returned HTML and extract the new view
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newView = doc.querySelector('[data-view]');
+        const currentView = document.querySelector('[data-view]');
+        const newToc = doc.querySelector('[data-view-right]');
+        const currentToc = document.querySelector('[data-view-right]');
+        let swapped = false;
+        if (newView && currentView) {
+          currentView.innerHTML = newView.innerHTML;
+          swapped = true;
+        }
+        if (newToc && currentToc) {
+          currentToc.innerHTML = newToc.innerHTML;
+          swapped = true;
+        }
+        if (swapped) {
+          if (pushState) history.pushState(null, '', url);
+          window.scrollTo(0, 0);
+          callback && callback(url, newView, newToc);
+        } else {
+          console.warn('Could not find view containers in the fetched HTML. Reloading the page as fallback.');
+          location.href = url;
+        }
+      }).catch(() => location.href = url);
+  },
+
+  initShareMarkdown: function() {
+    document.querySelectorAll('[data-share-markdown]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.querySelector('#share-markdown-content');
+        if (!el) return;
+        const markdown = JSON.parse(el.textContent).markdown;
+        navigator.clipboard.writeText(markdown).then(() => {
+          const label = btn.querySelector('span.fw-bold');
+          const prev = label.textContent;
+          label.textContent = 'Copied!';
+          setTimeout(() => { label.textContent = prev }, 1500);
+        });
+      });
+    });
+  },
+
+  initExternalLinksDecorator: function() {
+    // Function to check if a link is external
+    function isExternalLink(anchor) {
+      return anchor.hostname && anchor.hostname !== window.location.hostname;
+    }
+
+    // Example: Add 'external' class to all external links
+    document.querySelectorAll('a[href]').forEach(a => {
+      if (isExternalLink(a)) {
+        a.classList.add('external');
+        a.setAttribute('target', '_blank');
+      }
+    });
+  },
+
+  /**
+   * Initialize the application with the default options.
+   */
+  initAnimatedAlerts: function() {
+    document.querySelectorAll('.alert').forEach(alert => {
+      const anim = document.createElement('div');
+      anim.className = 'alert-animation';
+      anim.style.left = '0px';
+      anim.style.top = '0px';
+      alert.style.position = 'relative';
+      alert.insertAdjacentElement('afterbegin', anim);
+
+      const offsetX = 400;
+      const offsetY = 400;
+
+      document.body.addEventListener('mousemove', e => {
+        const rect = alert.getBoundingClientRect();
+        const animW = anim.offsetWidth;
+        const animH = anim.offsetHeight;
+        let x = e.clientX - rect.left - animW / 2;
+        let y = e.clientY - rect.top - animH / 2;
+
+        // Allow exceeding by offset
+        x = Math.max(-offsetX, Math.min(x, rect.width - animW + offsetX));
+        y = Math.max(-offsetY, Math.min(y, rect.height - animH + offsetY));
+
+        // Calculate rotation based on mouse position (example: angle from center)
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const dx = x + animW / 2 - centerX;
+        const dy = y + animH / 2 - centerY;
+        const angle = Math.atan2(dy, dx) * (18 / Math.PI); // degrees
+        anim.style.transform = 'translate(' + x + 'px, ' + y + 'px) rotate(' + angle + 'deg)';
+      });
+    });
+  },
+  
+  /**
+   * Initialize "time ago" formatting for <time> elements.
+   *
+   * Uses the browser's built-in internationalization
+   * (`Intl.RelativeTimeFormat`), so the phrasing follows the visitor's
+   * locale automatically — no hardcoded English strings.
+   * Example: "2023-10-01 12:00:00" -> "5 minutes ago" (or the locale equivalent)
+   */
+  initTimeAgo: function() {
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+    function timeago(dateString) {
+      const date = new Date(dateString.replace(' ', 'T'));
+      const diffSec = Math.round((date - new Date()) / 1000);
+      const abs = Math.abs(diffSec);
+      if (abs < 60) return rtf.format(diffSec, "second");
+      if (abs < 3600) return rtf.format(Math.round(diffSec / 60), "minute");
+      if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), "hour");
+      if (abs < 2592000) return rtf.format(Math.round(diffSec / 86400), "day");
+      if (abs < 31536000) return rtf.format(Math.round(diffSec / 2592000), "month");
+      return rtf.format(Math.round(diffSec / 31536000), "year");
+    }
+    document.querySelectorAll('time[datetime]').forEach(span => {
+      span.textContent = timeago(span.getAttribute('datetime'));
+    });
+  }
+}
+
+export default UI;
+
+// Expose globally for classic inline scripts (e.g. `UI.onReload(...)`),
+// which cannot see module scope.
+window.UI = UI;
+
+document.addEventListener('DOMContentLoaded', () => {
+  UI.init({
+    enableStickySidebar: true,
+    enableTimeAgo: true,
+    enableAnimatedAlerts: true
+  });
+
+  const mainArea = document.querySelector('div[data-area="main"]');
+  const leftSidebar = document.querySelector('div[data-area="left"]');
+  const rightSidebar = document.querySelector('div[data-area="right"]');
+
+  // Load preferences from localStorage
+  let isLeftSidebarVisible = localStorage.getItem('leftSidebarVisible') !== 'false';
+  let isRightSidebarVisible = localStorage.getItem('rightSidebarVisible') !== 'false';
+
+  function updateMainAreaCols() {
+    if (!isLeftSidebarVisible && !isRightSidebarVisible) {
+      mainArea.classList.remove('col-lg-7', 'col-lg-9');
+      mainArea.classList.add('col-lg-12');
+    } else if (!isLeftSidebarVisible || !isRightSidebarVisible) {
+      mainArea.classList.remove('col-lg-7', 'col-lg-12');
+      mainArea.classList.add('col-lg-9');
+    } else {
+      mainArea.classList.remove('col-lg-9', 'col-lg-12');
+      mainArea.classList.add('col-lg-7');
+    }
+  }
+
+  function updateSidebarVisibility() {
+    if (isLeftSidebarVisible) {
+      leftSidebar.classList.remove('d-none');
+      leftSidebar.classList.add('d-lg-block');
+    } else {
+      leftSidebar.classList.remove('d-lg-block');
+      leftSidebar.classList.add('d-none');
+    }
+    if (isRightSidebarVisible) {
+      rightSidebar.classList.remove('d-none');
+      rightSidebar.classList.add('d-lg-block');
+    } else {
+      rightSidebar.classList.remove('d-lg-block');
+      rightSidebar.classList.add('d-none');
+    }
+  }
+
+});
